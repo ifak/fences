@@ -1,0 +1,113 @@
+// Adapted from https://github.com/kean/Regex/blob/master/grammar.ebnf, MIT License
+
+start : START_OF_STRING_ANCHOR? expression
+
+expression : subexpression ( "|" expression )?
+
+subexpression : subexpressionitem+
+
+subexpressionitem : match
+                  | group
+                  | ANCHOR
+                  | BACKREFERENCE
+
+// Grouping Constructs 
+//------------------------------------------------------------------
+
+group : "(" GROUP_NON_CAPTURING_MODIFIER? expression ")" repetition?
+
+GROUP_NON_CAPTURING_MODIFIER : "?:"
+
+// Match
+//------------------------------------------------------------------
+
+match : matchitem repetition?
+
+matchitem : MATCH_ANY_CHARACTER
+          | match_character_class
+          | CHAR
+
+MATCH_ANY_CHARACTER : "."
+
+match_character_class : character_group
+                      | CHARACTER_CLASS
+                      | character_class_from_unicode_category
+
+
+// character classes
+//------------------------------------------------------------------
+
+character_group : "[" CHARACTER_GROUP_NEGATIVE_MODIFIER? character_group_item+ "]"
+
+CHARACTER_GROUP_NEGATIVE_MODIFIER : "^"
+
+character_group_item : CHARACTER_CLASS
+                     | character_class_from_unicode_category
+                     | character_range
+                     | CHAR
+
+character_class_from_unicode_category : "\p{" LETTERS "}"
+character_range : CHAR "-" CHAR
+
+CHARACTER_CLASS : CHARACTER_CLASS_ANY_WORD
+                | CHARACTER_CLASS_ANY_WORD_INVERTED
+                | CHARACTER_CLASS_ANY_DECIMAL_DIGIT
+                | CHARACTER_CLASS_ANY_DECIMAL_DIGIT_INVERTED
+
+CHARACTER_CLASS_ANY_WORD : "\w"
+CHARACTER_CLASS_ANY_WORD_INVERTED : "\W"
+CHARACTER_CLASS_ANY_DECIMAL_DIGIT : "\d"
+CHARACTER_CLASS_ANY_DECIMAL_DIGIT_INVERTED : "\D"
+
+
+
+// Quantifiers 
+// ------------------------------------------------------------------
+
+repetition : repetition_type
+// TODO: was repetition : repetition_type LAZY_MODIFIER?
+repetition_type : ZERO_OR_MORE_QUANTIFIER
+                | ONE_OR_MORE_QUANTIFIER
+                | ZERO_OR_ONE_QUANTIFIER
+                | range
+
+LAZY_MODIFIER : "?"
+
+ZERO_OR_MORE_QUANTIFIER : "*"
+ONE_OR_MORE_QUANTIFIER : "+"
+ZERO_OR_ONE_QUANTIFIER : "?"
+
+range : "{" INTEGER ( "," INTEGER? )? "}"
+
+// Backreferences
+// ------------------------------------------------------------------
+
+BACKREFERENCE : "\\" INTEGER
+
+// anchors
+// ------------------------------------------------------------------
+
+START_OF_STRING_ANCHOR : "^"
+
+ANCHOR : ANCHOR_WORD_BOUNDARY
+       | ANCHOR_NON_WORD_BOUNDARY
+       | ANCHOR_START_OF_STRING_ONLY
+       | ANCHOR_END_OF_STRING_ONLY_NOTNEWLINE
+       | ANCHOR_END_OF_STRING_ONLY
+       | ANCHOR_PREVIOUS_NATCH_END
+       | ANCHOR_END_OF_STRING
+
+ANCHOR_WORD_BOUNDARY : "\b"
+ANCHOR_NON_WORD_BOUNDARY : "\B"
+ANCHOR_START_OF_STRING_ONLY : "\A"
+ANCHOR_END_OF_STRING_ONLY_NOTNEWLINE : "\z"
+ANCHOR_END_OF_STRING_ONLY : "\Z"
+ANCHOR_PREVIOUS_NATCH_END : "\G"
+ANCHOR_END_OF_STRING : "$"
+
+// Misc
+// ------------------------------------------------------------------
+
+INTEGER : /[0-9]+/
+LETTERS : /[a-zA-Z]+/
+CHAR : /\t|\n|\r|[\u0020-\uD7FF]|[\uE000-\uFFFD]|[\u10000-\u10FFFF]/
