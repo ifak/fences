@@ -74,6 +74,25 @@ class CreateObjectNode(Decision):
     def description(self) -> str:
         return "Create empty dict"
 
+class CreateInputNode(Decision):
+    def __init__(self) -> None:
+        super().__init__(None, Operation.OR)
+
+    def apply(self, data: any) -> any:
+        return KeyReference({}, '')
+
+    def description(self) -> Optional[str]:
+        return "Create input"
+
+class FetchOutputNode(Leaf):
+    def __init__(self) -> None:
+        super().__init__(None, True)
+
+    def apply(self, data: KeyReference) -> any:
+        return data.ref[data.key]
+
+    def description(self) -> Optional[str]:
+        return "Fetch output"
 
 def default_config():
     return Config(
@@ -319,4 +338,12 @@ def parse(data: dict, config=None) -> Node:
         raise ParseException(f"Cannot parse {data} at {path}")
 
     root = root.resolve(all_nodes)
-    return root
+
+    # prepend input / output nodes
+    create_input = CreateInputNode()
+    super_root = NoOpDecision(None, Operation.AND)
+    create_input.add_transition(super_root)
+    super_root.add_transition(root)
+    super_root.add_transition(FetchOutputNode())
+    
+    return create_input

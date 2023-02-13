@@ -1,5 +1,4 @@
 from fences.json_schema import parse
-from fences.json_schema.algorithm import execute
 from jsonschema import validate, ValidationError
 import unittest
 import yaml
@@ -13,14 +12,22 @@ class TestGenerate(unittest.TestCase):
     def check(self, schema):
         graph = parse.parse(schema)
         for i in graph.generate_paths():
+            sample = graph.execute(i.path)
             if i.is_valid:
-                sample = execute(graph, i.path)
                 validate(instance=sample, schema=schema)
             else:
-                sample = execute(graph, i.path)
                 with self.assertRaises(ValidationError):
                     validate(instance=sample, schema=schema)
 
+    def test_simple(self):
+        schema = {
+            "properties": {
+                "x": {
+                    "type": "string"
+                }
+            }
+        }
+        self.check(schema)
 
     def test_schema1(self):
         schema = {
@@ -75,7 +82,6 @@ class TestGenerate(unittest.TestCase):
             execute(graph, valid.path)
         for invalid in result.invalid:
             execute(graph, invalid.path)
-
 
     def test_schema3(self):
         schema = {
@@ -137,7 +143,7 @@ class TestGenerate(unittest.TestCase):
     def test_aas(self):
         with open(os.path.join(SCRIPT_DIR, 'fixtures', 'aas.yaml')) as f:
             schema = yaml.safe_load(f)
-        #TODO: json schema - stack overflow
+        # TODO: json schema - stack overflow
         graph = parse.parse(schema)
         for result in graph.generate_paths():
-            execute(graph, result.path)
+            graph.execute(result.path)

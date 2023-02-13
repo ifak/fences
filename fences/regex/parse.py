@@ -9,8 +9,10 @@ _parser = Lark_StandAlone()
 class ParseException(Exception):
     pass
 
+
 class InternalParserException(ParseException):
     pass
+
 
 class Repetition:
     Infinity = 'inf'
@@ -23,8 +25,30 @@ class Repetition:
         return f"[{self.min}, {self.max}]"
 
 
+class CreateInputNode(Decision):
+    def __init__(self) -> None:
+        super().__init__(None, Operation.OR)
+
+    def apply(self, data: any) -> any:
+        return []
+
+    def description(self) -> str:
+        return "Create input"
+
+
+class FetchOutputNode(Leaf):
+    def __init__(self) -> None:
+        super().__init__(None, True)
+
+    def apply(self, data: any) -> any:
+        return "".join(data)
+
+    def description(self) -> str:
+        return "Fetch output"
+
+
 def _parse_repetition(tree: Tree[Token]) -> "MatchConverter.Repetition":
-    assert len(tree.children) in [1,2]
+    assert len(tree.children) in [1, 2]
     repetition_type = tree.children[0]
     assert isinstance(repetition_type, Tree)
     assert repetition_type.data == 'repetition_type'
@@ -40,9 +64,11 @@ def _parse_repetition(tree: Tree[Token]) -> "MatchConverter.Repetition":
             first_value = int(first.value)
             second_value = int(second.value)
             if first_value > second_value:
-                raise ParseException(f"Invalid range: {first_value} > {second_value}")
+                raise ParseException(
+                    f"Invalid range: {first_value} > {second_value}")
             return Repetition(first_value, second_value)
-        raise InternalParserException(f"Unknown type {type(qualifier)} ('{qualifier.data}')")
+        raise InternalParserException(
+            f"Unknown type {type(qualifier)} ('{qualifier.data}')")
     elif isinstance(qualifier, Token):
         if qualifier.type == 'ZERO_OR_MORE_QUANTIFIER':
             return Repetition(0, None)
@@ -50,8 +76,10 @@ def _parse_repetition(tree: Tree[Token]) -> "MatchConverter.Repetition":
             return Repetition(1, None)
         elif qualifier.type == 'ZERO_OR_ONE_QUANTIFIER':
             return Repetition(0, 1)
-        raise InternalParserException(f"Unknown type {type(qualifier)} ('{qualifier.type}')")
+        raise InternalParserException(
+            f"Unknown type {type(qualifier)} ('{qualifier.type}')")
     raise InternalParserException(f"Unknown type {type(qualifier)}")
+
 
 def _add_repetition(root: Decision, item: Node, times: int):
     assert times >= 0
@@ -60,22 +88,23 @@ def _add_repetition(root: Decision, item: Node, times: int):
         subroot.add_transition(item)
     root.add_transition(subroot)
 
+
 def _repeat(root: Decision, item: Node, rep: Repetition):
-        # Instantiate open ranges
-        if rep.max is None:
-            rep.max = rep.min + 2
-        assert rep.min is not None
+    # Instantiate open ranges
+    if rep.max is None:
+        rep.max = rep.min + 2
+    assert rep.min is not None
 
-        # Special case: do nothing
-        # TODO: this invalid for rep.min == 0
-        if rep.min == 0 or rep.max == 0:
-            root.add_transition(NoOpLeaf(None, True))
+    # Special case: do nothing
+    # TODO: this invalid for rep.min == 0
+    if rep.min == 0 or rep.max == 0:
+        root.add_transition(NoOpLeaf(None, True))
 
-        # TODO: invalid: rep.min-1 and rep.max+1
-        if rep.min > 0:
-            _add_repetition(root, item, rep.min)
-        if rep.max != rep.min:
-            _add_repetition(root, item, rep.max)
+    # TODO: invalid: rep.min-1 and rep.max+1
+    if rep.min > 0:
+        _add_repetition(root, item, rep.min)
+    if rep.max != rep.min:
+        _add_repetition(root, item, rep.max)
 
 
 class AppendCharsLeaf(Leaf):
@@ -91,8 +120,8 @@ class AppendCharsLeaf(Leaf):
     def mask(self, s: str) -> str:
         allowed = string.ascii_letters + string.digits
         return "".join([
-                (i if i in allowed else f"chr({ord(i)})") for i in s
-            ])
+            (i if i in allowed else f"chr({ord(i)})") for i in s
+        ])
 
     def description(self) -> str:
         return f"Append {self.mask(self.char)}"
@@ -112,7 +141,8 @@ class TreeConverter:
             try:
                 converter = self.children[str(child.data)]
             except KeyError as e:
-                raise InternalParserException(f"Unexpected token {e} ({type(self)})")
+                raise InternalParserException(
+                    f"Unexpected token {e} ({type(self)})")
             return converter(child).to_node()
         elif isinstance(child, Token):
             try:
@@ -123,12 +153,12 @@ class TreeConverter:
         else:
             raise InternalParserException(f"Unexpected type {type(child)}")
 
-
     def to_node(self) -> Node:
         root = NoOpDecision(None, self.operation)
         for child in self.tree.children:
-            root.add_transition( self.convert(child) )
+            root.add_transition(self.convert(child))
         return root
+
 
 class GroupConverter(TreeConverter):
     children = {
@@ -156,6 +186,7 @@ class GroupConverter(TreeConverter):
             _repeat(root, item, rep)
             return root
 
+
 class CharacterRangeConverter(TreeConverter):
     def to_node(self) -> Node:
         assert len(self.tree.children) == 2
@@ -165,7 +196,8 @@ class CharacterRangeConverter(TreeConverter):
         assert isinstance(first, Token)
         assert isinstance(second, Token)
         if ord(first.value) > ord(second.value):
-            raise ParseException(f"Invalid character range: {first.value}-{second.value}")
+            raise ParseException(
+                f"Invalid character range: {first.value}-{second.value}")
         root = NoOpDecision(None, self.operation)
         root.add_transition(AppendCharsLeaf(None, True, first.value))
         root.add_transition(AppendCharsLeaf(None, True, second.value))
@@ -174,10 +206,12 @@ class CharacterRangeConverter(TreeConverter):
         # root.add_transition(AppendCharsLeaf(None, False, chr(ord(second.value)+1)))
         return root
 
+
 class CharacterGroupItemConverter(TreeConverter):
     children = {
         'character_range': CharacterRangeConverter
     }
+
     def convert_char(self, token: Token) -> Node:
         return AppendCharsLeaf(None, True, token.value)
 
@@ -194,11 +228,13 @@ class CharacterGroupItemConverter(TreeConverter):
             raise ParseException(f"Unknown character class {e}")
         return AppendCharsLeaf(None, True, sample)
 
+
 class CharacterGroupConverter(TreeConverter):
 
     children = {
         'character_group_item': CharacterGroupItemConverter
     }
+
     def to_node(self) -> Node:
         assert len(self.tree.children) >= 1
         invert = False
@@ -208,18 +244,21 @@ class CharacterGroupConverter(TreeConverter):
             start = 1
         root = NoOpDecision(None, self.operation)
         for child in self.tree.children[start:]:
-            root.add_transition( self.convert(child) )
+            root.add_transition(self.convert(child))
         # TODO: use invert
         return root
+
 
 class MatchCharacterClassConverter(TreeConverter):
     children = {
         'character_group': CharacterGroupConverter
     }
 
+
 class EscapedCharacterConverter(TreeConverter):
     def convert_special_char(self, token: Token):
         return AppendCharsLeaf(None, True, str(token))
+
 
 class MatchItemConverter(TreeConverter):
     children = {
@@ -233,6 +272,7 @@ class MatchItemConverter(TreeConverter):
     def convert_match_any_character(self, token: Token):
         return NoOpLeaf(None, True)
 
+
 class MatchConverter(TreeConverter):
     children = {
         'matchitem': MatchItemConverter,
@@ -241,7 +281,7 @@ class MatchConverter(TreeConverter):
     operation = Operation.OR
 
     def to_node(self) -> Node:
-        assert len(self.tree.children) in [1,2]
+        assert len(self.tree.children) in [1, 2]
         assert self.tree.children[0].data == 'matchitem'
         item = MatchItemConverter(self.tree.children[0]).to_node()
         if len(self.tree.children) == 2:
@@ -255,11 +295,13 @@ class MatchConverter(TreeConverter):
         else:
             return item
 
+
 class SubExpressionItemConverter(TreeConverter):
     children = {
         'match': MatchConverter,
         'group': GroupConverter,
     }
+
     def convert_anchor(self, token: Token):
         # TODO
         return NoOpLeaf(None, True)
@@ -288,11 +330,14 @@ class StartConverter(TreeConverter):
     def convert_start_of_string_anchor(self, token: Token):
         return AppendCharsLeaf(None, True, 'X')
 
+
 GroupConverter.children['expression'] = ExpressionConverter
 ExpressionConverter.children['expression'] = ExpressionConverter
 
+
 def unescape(s: str) -> str:
     return bytes(s, "utf-8").decode("unicode_escape")
+
 
 def parse(regex: str) -> Node:
     regex = unescape(regex)
@@ -300,4 +345,10 @@ def parse(regex: str) -> Node:
     # print(tree.pretty())
     assert isinstance(tree, Tree)
     assert tree.data == 'start'
-    return StartConverter(tree).to_node()
+    root = StartConverter(tree).to_node()
+    create_input = CreateInputNode()
+    super_root = NoOpDecision(None, Operation.AND)
+    create_input.add_transition(super_root)
+    super_root.add_transition(root)
+    super_root.add_transition(FetchOutputNode())
+    return create_input

@@ -9,9 +9,7 @@ class TestParse(unittest.TestCase):
         graph = parse.parse(s)
         regex = re.compile(s)
         for i in graph.generate_paths():
-            result = []
-            graph.execute(i.path, result)
-            s = "".join(result)
+            s = graph.execute(i.path)
             if i.is_valid:
                 self.assertTrue( regex.match(s) is not None, f"valid '{s}'" )
             else:

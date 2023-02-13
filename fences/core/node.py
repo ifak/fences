@@ -1,6 +1,6 @@
 from enum import Enum
 from .exception import GraphException, ResolveReferenceException
-from typing import List, Optional, Generator, Set, Dict
+from typing import List, Optional, Generator, Set, Dict, Tuple
 from dataclasses import dataclass, field
 
 Path = List[int]
@@ -96,35 +96,38 @@ class Node:
         _resolve(root)
         return root
 
-    def execute(self, path: Path, data: any) -> any:
+    def execute(self, path: Path, data = None) -> any:
         """
         Executes a path on the node
         """
-        idx = self._execute(path, 0, data)
+        idx, result = self._execute(path, 0, data)
         if idx != len(path):
             raise GraphException("Path not fully consumed")
+        return result
 
-    def _execute(self, path: Path, path_idx: int, data: any) -> int:
-        result = self.apply(data)
-
+    def _execute(self, path: Path, path_idx: int, data: any) -> Tuple[int, any]:
         if path_idx > len(path):
-            raise Exception(f"path_idx ({path_idx}) > len(path) ({len(path)})")
+            raise GraphException(f"path_idx ({path_idx}) > len(path) ({len(path)})")
+
+        data = self.apply(data)
 
         if path_idx == len(path):
-            return path_idx
+            return path_idx, data
 
         if not isinstance(self, Decision):
-            return path_idx
+            return path_idx, data
 
         if self.operation == Operation.AND:
+            result = None
             for transition in self.outgoing_transitions:
-                path_idx = transition.target._execute(path, path_idx, result)
-            return path_idx
+                path_idx, result = transition.target._execute(path, path_idx, data)
+            # return the result of the last node
+            return path_idx, result
         else:
             if not self.outgoing_transitions:
-                return path_idx
+                return path_idx, data
             idx = path[path_idx]
-            return self.outgoing_transitions[idx].target._execute(path, path_idx+1, result)
+            return self.outgoing_transitions[idx].target._execute(path, path_idx+1, data)
 
     def _forward(self, path: Path, already_reached: Set):
         already_reached.add(id(self))
@@ -296,6 +299,8 @@ class NoOpDecision(Decision):
     def apply(self, data: any) -> any:
         return data
 
+    def description(self) -> Optional[str]:
+        return "(Do nothing)"
 
 class NoOpLeaf(Leaf):
     def apply(self, data: any) -> any:
