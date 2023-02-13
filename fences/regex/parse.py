@@ -27,7 +27,7 @@ class Repetition:
 
 class CreateInputNode(Decision):
     def __init__(self) -> None:
-        super().__init__(None, Operation.OR)
+        super().__init__(None, False)
 
     def apply(self, data: any) -> any:
         return []
@@ -83,7 +83,7 @@ def _parse_repetition(tree: Tree[Token]) -> "MatchConverter.Repetition":
 
 def _add_repetition(root: Decision, item: Node, times: int):
     assert times >= 0
-    subroot = NoOpDecision(None, Operation.AND)
+    subroot = NoOpDecision(None, True)
     for _ in range(times):
         subroot.add_transition(item)
     root.add_transition(subroot)
@@ -130,7 +130,7 @@ class AppendCharsLeaf(Leaf):
 class TreeConverter:
 
     children: Dict[str, "TreeConverter"] = {}
-    operation: Operation = Operation.OR
+    all_transitions = False
 
     def __init__(self, tree: Tree[Token]) -> None:
         assert isinstance(tree, Tree)
@@ -154,7 +154,7 @@ class TreeConverter:
             raise InternalParserException(f"Unexpected type {type(child)}")
 
     def to_node(self) -> Node:
-        root = NoOpDecision(None, self.operation)
+        root = NoOpDecision(None, self.all_transitions)
         for child in self.tree.children:
             root.add_transition(self.convert(child))
         return root
@@ -181,7 +181,7 @@ class GroupConverter(TreeConverter):
         if repetition is None:
             return item
         else:
-            root = NoOpDecision(None, self.operation)
+            root = NoOpDecision(None, self.all_transitions)
             rep = _parse_repetition(repetition)
             _repeat(root, item, rep)
             return root
@@ -198,7 +198,7 @@ class CharacterRangeConverter(TreeConverter):
         if ord(first.value) > ord(second.value):
             raise ParseException(
                 f"Invalid character range: {first.value}-{second.value}")
-        root = NoOpDecision(None, self.operation)
+        root = NoOpDecision(None, self.all_transitions)
         root.add_transition(AppendCharsLeaf(None, True, first.value))
         root.add_transition(AppendCharsLeaf(None, True, second.value))
         # TODO: invalid samples
@@ -242,7 +242,7 @@ class CharacterGroupConverter(TreeConverter):
         if isinstance(self.tree.children[0], Token) and self.tree.children[0].type == 'CHARACTER_GROUP_NEGATIVE_MODIFIER':
             invert = True
             start = 1
-        root = NoOpDecision(None, self.operation)
+        root = NoOpDecision(None, self.all_transitions)
         for child in self.tree.children[start:]:
             root.add_transition(self.convert(child))
         # TODO: use invert
@@ -278,7 +278,7 @@ class MatchConverter(TreeConverter):
         'matchitem': MatchItemConverter,
         'match_character_class': MatchCharacterClassConverter,
     }
-    operation = Operation.OR
+    all_transitions = False
 
     def to_node(self) -> Node:
         assert len(self.tree.children) in [1, 2]
@@ -289,7 +289,7 @@ class MatchConverter(TreeConverter):
             assert isinstance(repetition, Tree)
             assert repetition.data == 'repetition'
             rep = _parse_repetition(repetition)
-            root = NoOpDecision(None, self.operation)
+            root = NoOpDecision(None, self.all_transitions)
             _repeat(root, item, rep)
             return root
         else:
@@ -311,7 +311,7 @@ class SubExpressionConverter(TreeConverter):
     children = {
         'subexpressionitem': SubExpressionItemConverter
     }
-    operation = Operation.AND
+    all_transitions = True
 
 
 class ExpressionConverter(TreeConverter):
@@ -325,7 +325,7 @@ class StartConverter(TreeConverter):
     children = {
         'expression': ExpressionConverter,
     }
-    operation = Operation.AND
+    all_transitions = True
 
     def convert_start_of_string_anchor(self, token: Token):
         return AppendCharsLeaf(None, True, 'X')
@@ -348,7 +348,7 @@ def parse(regex: str) -> Node:
     assert tree.data == 'start'
     root = StartConverter(tree).to_node()
     create_input = CreateInputNode()
-    super_root = NoOpDecision(None, Operation.AND)
+    super_root = NoOpDecision(None, True)
     create_input.add_transition(super_root)
     super_root.add_transition(root)
     super_root.add_transition(FetchOutputNode())

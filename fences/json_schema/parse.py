@@ -76,7 +76,7 @@ class CreateObjectNode(Decision):
 
 class CreateInputNode(Decision):
     def __init__(self) -> None:
-        super().__init__(None, Operation.OR)
+        super().__init__(None, False)
 
     def apply(self, data: any) -> any:
         return KeyReference({}, '')
@@ -169,7 +169,7 @@ def _read_list(data: dict, key: str, unparsed_keys: Set[str], default=None) -> l
 
 def parse_all_of(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     root = NoOpDecision(str(path))
-    root.operation = Operation.AND
+    root.all_transitions = True
     items = _read_list(data, 'allOf', unparsed_keys)
     # TODO: although 'type' does not make sense here, we need to skip it since many schemas use it
     _read_string(data, 'type', unparsed_keys, '')
@@ -213,7 +213,7 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
         required.add(token)
 
     root = CreateObjectNode(str(path))
-    root.operation = Operation.AND
+    root.all_transitions = True
     # Create Keys (always valid)
     for key, value in props.items():
         sub_path = path + 'properties' + key
@@ -341,7 +341,7 @@ def parse(data: dict, config=None) -> Node:
 
     # prepend input / output nodes
     create_input = CreateInputNode()
-    super_root = NoOpDecision(None, Operation.AND)
+    super_root = NoOpDecision(None, True)
     create_input.add_transition(super_root)
     super_root.add_transition(root)
     super_root.add_transition(FetchOutputNode())

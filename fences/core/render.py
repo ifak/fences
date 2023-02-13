@@ -3,11 +3,6 @@ import pydot
 from .exception import GraphException
 from .node import Node, Decision, Leaf, Reference, Operation
 
-def _to_text(operation: Operation) -> str:
-    if operation == Operation.AND: return 'AND'
-    if operation == Operation.OR: return 'OR'
-    raise GraphException(f"Unknown operation '{operation}'") # pragma: no cover
-
 def _to_graph_node(node: Node):
     attrs = {}
     lines = []
@@ -18,7 +13,8 @@ def _to_graph_node(node: Node):
         lines.append(d)
     if isinstance(node, Decision):
         attrs['shape'] = 'rect'
-        lines.append(_to_text(node.operation))
+        if node.all_transitions:
+            lines.append("ALL")
     elif isinstance(node, Reference):
         attrs['fillcolor'] = 'yellow'
         attrs['style'] = 'filled'

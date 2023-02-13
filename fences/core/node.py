@@ -117,7 +117,7 @@ class Node:
         if not isinstance(self, Decision):
             return path_idx, data
 
-        if self.operation == Operation.AND:
+        if self.all_transitions:
             result = None
             for transition in self.outgoing_transitions:
                 path_idx, result = transition.target._execute(path, path_idx, data)
@@ -137,7 +137,7 @@ class Node:
         if not self.outgoing_transitions:
             return
 
-        if self.operation == Operation.AND:
+        if self.all_transitions:
             for transition in self.outgoing_transitions:
                 transition.target._forward(path, already_reached)
         else:
@@ -171,7 +171,7 @@ class Node:
                 selected = transition.outgoing_idx
                 min_paths = transition.source._num_paths
                 predecessor = transition.source
-        if predecessor.operation == Operation.AND:
+        if predecessor.all_transitions:
             sub_reverse_path = []
             for transition in reversed(predecessor.outgoing_transitions):
                 if transition.target != self:
@@ -261,9 +261,9 @@ class IncomingTransition:
 
 
 class Decision(Node):
-    def __init__(self, id: str, operation=Operation.OR) -> None:
+    def __init__(self, id: str, all_transitions: bool = False) -> None:
         super().__init__(id)
-        self.operation = operation
+        self.all_transitions = all_transitions
         self.outgoing_transitions: List[OutgoingTransition] = []
 
     def add_transition(self, target: Node):
