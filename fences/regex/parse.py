@@ -337,7 +337,7 @@ ExpressionConverter.children['expression'] = ExpressionConverter
 
 def unescape(s: str) -> str:
     for i in ['\\', '{', '}', '.', '(', ')', '[', ']']:
-        return s.replace('\\' + i, i)
+        s = s.replace('\\' + i, i)
     return s
 
 def parse(regex: str) -> Node:
