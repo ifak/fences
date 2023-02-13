@@ -1,4 +1,3 @@
-from enum import Enum
 from .exception import GraphException, ResolveReferenceException
 from typing import List, Optional, Generator, Set, Dict, Tuple
 from dataclasses import dataclass, field
@@ -239,11 +238,6 @@ class Leaf(Node):
     def __init__(self, id: str, is_valid: bool) -> None:
         super().__init__(id)
         self.is_valid = is_valid
-
-
-class Operation(Enum):
-    OR = 1
-    AND = 2
 
 
 class OutgoingTransition:

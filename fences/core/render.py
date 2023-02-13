@@ -1,7 +1,7 @@
 import pydot
 
 from .exception import GraphException
-from .node import Node, Decision, Leaf, Reference, Operation
+from .node import Node, Decision, Leaf, Reference
 
 def _to_graph_node(node: Node):
     attrs = {}

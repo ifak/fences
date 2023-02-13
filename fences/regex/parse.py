@@ -1,17 +1,10 @@
-from fences.core.node import Decision, Node, Operation, Leaf, NoOpDecision, NoOpLeaf
+from fences.core.node import Decision, Node, Leaf, NoOpDecision, NoOpLeaf
+from .exception import ParseException, InternalParserException
 from typing import Set, Dict, Union
 import string
 
 from .grammar import Lark_StandAlone, Tree, Token
 _parser = Lark_StandAlone()
-
-
-class ParseException(Exception):
-    pass
-
-
-class InternalParserException(ParseException):
-    pass
 
 
 class Repetition:

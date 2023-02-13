@@ -6,7 +6,7 @@ from .config import Config, KeyHandler, StringGenerators, BoolValues
 from .json_pointer import JsonPointer
 from .string import generate_random_string, StringProperties
 
-from fences.core.node import Decision, Leaf, Node, Reference, Operation, NoOpLeaf, NoOpDecision
+from fences.core.node import Decision, Leaf, Node, Reference, NoOpLeaf, NoOpDecision
 
 from dataclasses import dataclass
 
@@ -43,7 +43,7 @@ class InsertKeyNode(Decision):
         return KeyReference(data, self.key)
 
     def description(self) -> str:
-        return f"Create key '{self.key}'"
+        return f"Insert key '{self.key}'"
 
 
 class CreateArrayNode(Decision):
@@ -214,14 +214,21 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
 
     root = CreateObjectNode(str(path))
     root.all_transitions = True
-    # Create Keys (always valid)
+
     for key, value in props.items():
+        property_root = NoOpDecision(None, False)
+        root.add_transition(property_root)
+
+        # Insert property (always valid)
         sub_path = path + 'properties' + key
         key_node = InsertKeyNode(None, key)
-        root.add_transition(key_node)
+        property_root.add_transition(key_node)
         value_node = parse_dict(value, config, sub_path)
         key_node.add_transition(value_node)
-        root.add_transition(NoOpLeaf(None, is_valid=key not in required))
+
+        # Omit property (valid if not required)
+        property_root.add_transition(NoOpLeaf(None, is_valid=key not in required))
+
     return root
 
 

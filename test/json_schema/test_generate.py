@@ -63,25 +63,17 @@ class TestGenerate(unittest.TestCase):
         self.check(schema)
 
     def test_schema2(self):
-        return
-        # TODO stack overflow
         schema = {
             "type": "array",
             "items": {
                 "properties": {
-                    "test": {"type": "boolean"},
                     "second": {
                         "$ref": "#/"
                     }
                 }
             }
         }
-        graph = parse.parse(schema)
-        result = generate_paths(graph)
-        for valid in result.valid:
-            execute(graph, valid.path)
-        for invalid in result.invalid:
-            execute(graph, invalid.path)
+        self.check(schema)
 
     def test_schema3(self):
         schema = {
