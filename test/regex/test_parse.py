@@ -1,7 +1,6 @@
 from fences.regex import parse
 import unittest
 import re
-from fences.core.render import render
 
 class TestParse(unittest.TestCase):
 

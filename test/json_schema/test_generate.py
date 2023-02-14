@@ -1,4 +1,5 @@
 from fences.json_schema import parse
+from fences.core.debug import check_consistency
 from jsonschema import validate, ValidationError
 import unittest
 import yaml
@@ -11,6 +12,7 @@ class TestGenerate(unittest.TestCase):
 
     def check(self, schema):
         graph = parse.parse(schema)
+        check_consistency(graph)
         for i in graph.generate_paths():
             sample = graph.execute(i.path)
             if i.is_valid:

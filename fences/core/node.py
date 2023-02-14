@@ -90,8 +90,8 @@ class Node:
                         target_node.incoming_transitions.append(
                             IncomingTransition(node, idx)
                         )
-                        next_node = target_node
-                    _resolve(next_node)
+                for transition in node.outgoing_transitions:
+                    _resolve(transition.target)
         _resolve(root)
         return root
 
@@ -110,9 +110,6 @@ class Node:
 
         data = self.apply(data)
 
-        if path_idx == len(path):
-            return path_idx, data
-
         if not isinstance(self, Decision):
             return path_idx, data
 
@@ -123,6 +120,8 @@ class Node:
             # return the result of the last node
             return path_idx, result
         else:
+            if path_idx == len(path):
+                return path_idx, data
             if not self.outgoing_transitions:
                 return path_idx, data
             idx = path[path_idx]
@@ -179,10 +178,8 @@ class Node:
                     transition.target._forward(sub_path, already_reached)
                     for i in sub_visited:
                         already_reached.add(i)
-                    # sub_reverse_path.insert(sub_reverse_path.end(), sub_path.rbegin(), sub_path.rend());
                     sub_reverse_path.extend(reversed(sub_path))
                 else:
-                    # sub_reverse_path.insert(sub_reverse_path.end(), reverse_path.begin(), reverse_path.end());
                     sub_reverse_path.extend(reverse_path)
             # TODO: this does not seem very efficient
             reverse_path.clear()
@@ -241,8 +238,9 @@ class Leaf(Node):
 
 
 class OutgoingTransition:
-    def __init__(self, target: Node) -> None:
+    def __init__(self, target: Node, inverting: bool = False) -> None:
         self.target = target
+        self.inverting = inverting
 
 
 class IncomingTransition:
@@ -260,12 +258,12 @@ class Decision(Node):
         self.all_transitions = all_transitions
         self.outgoing_transitions: List[OutgoingTransition] = []
 
-    def add_transition(self, target: Node):
+    def add_transition(self, target: Node, inverting: bool = False):
         target.incoming_transitions.append(
             IncomingTransition(self, len(self.outgoing_transitions))
         )
         self.outgoing_transitions.append(
-            OutgoingTransition(target)
+            OutgoingTransition(target, inverting)
         )
 
     def _items(self, already_visited: Set["Node"]) -> Generator["Node", None, None]:
