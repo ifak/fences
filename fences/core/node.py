@@ -127,7 +127,7 @@ class Node:
             idx = path[path_idx]
             return self.outgoing_transitions[idx].target._execute(path, path_idx+1, data)
 
-    def _forward(self, path: Path, already_reached: Set):
+    def _generate(self, result_path: Path, already_reached: Set):
         already_reached.add(id(self))
         self._num_paths += 1
         if not isinstance(self, Decision):
@@ -137,7 +137,7 @@ class Node:
 
         if self.all_transitions:
             for transition in self.outgoing_transitions:
-                transition.target._forward(path, already_reached)
+                transition.target._generate(result_path, already_reached)
         else:
             selected = None
             min_paths = float('inf')
@@ -151,84 +151,75 @@ class Node:
             if selected is None:
                 raise Exception("LOOP detected!")
 
-            path.append(selected)
-            self.outgoing_transitions[selected].target._forward(
-                path, already_reached)
+            result_path.append(selected)
+            self.outgoing_transitions[selected].target._generate(result_path, already_reached)
 
-    def _backward(self, reverse_path: Path, already_reached: Set):
+    def _backward(self, path: Path, already_reached: Set) -> "Node":
         already_reached.add(id(self))
         self._num_paths += 1
-        if not self.incoming_transitions:
-            return
 
-        selected = None
-        predecessor = None
+        if not self.incoming_transitions:
+            return self
+
+        predecessor_transition = None
         min_paths = float('inf')
         for transition in self.incoming_transitions:
             if transition.source._num_paths < min_paths:
-                selected = transition.outgoing_idx
                 min_paths = transition.source._num_paths
-                predecessor = transition.source
-        if predecessor.all_transitions:
-            sub_reverse_path = []
-            for transition in reversed(predecessor.outgoing_transitions):
-                if transition.target != self:
-                    sub_visited = set()
-                    sub_path = []
-                    transition.target._forward(sub_path, already_reached)
-                    for i in sub_visited:
-                        already_reached.add(i)
-                    sub_reverse_path.extend(reversed(sub_path))
+                predecessor_transition = transition
+        path.append(predecessor_transition.outgoing_idx)
+        return predecessor_transition.source._backward(path, already_reached)
+
+    def _forward(self, backward_path: Path, forward_path: Path, visited: Set):
+        if len(backward_path) == 0: return
+        assert isinstance(self, Decision)
+        path_idx = backward_path.pop(-1)
+        if self.all_transitions:
+            for idx, transition in enumerate(self.outgoing_transitions):
+                if idx == path_idx:
+                    transition.target._forward(backward_path, forward_path, visited)
                 else:
-                    sub_reverse_path.extend(reverse_path)
-            # TODO: this does not seem very efficient
-            reverse_path.clear()
-            reverse_path.extend(sub_reverse_path)
+                    transition.target._generate(forward_path, visited)
         else:
-            reverse_path.append(selected)
-        predecessor._backward(reverse_path, already_reached)
+            forward_path.append(path_idx)
+            self.outgoing_transitions[path_idx].target._forward(backward_path, forward_path, visited)
 
     @classmethod
-    def _generate_paths(self, to_visit: List["Node"], is_valid: bool) -> Generator[ResultEntry, None, None]:
+    def _generate_paths(self, to_visit: List["Leaf"]) -> Generator[ResultEntry, None, None]:
         while to_visit:
             next = to_visit[0]
 
-            # Generate a path to the to start node
-            path: Path = []
+            # Generate a path to the root
+            backward_path: Path = []
             visited = set()
-            next._forward(path, visited)
-            path.reverse()
-            next._backward(path, visited)
-            path.reverse()
-            yield ResultEntry(next, path, is_valid)
+            root = next._backward(backward_path, visited)
+
+            # Follow path to the target node
+            forward_path = []
+            root._forward(backward_path, forward_path, visited)
+
+            # Yield
+            yield ResultEntry(next, forward_path, next.is_valid)
 
             # Remove the visited nodes
-            idx = 0
-            while idx < len(to_visit):
-                if id(to_visit[idx]) in visited:
-                    del to_visit[idx]
+            path_idx = 0
+            while path_idx < len(to_visit):
+                if id(to_visit[path_idx]) in visited:
+                    del to_visit[path_idx]
                 else:
-                    idx += 1
+                    path_idx += 1
 
     def generate_paths(self) -> Generator[ResultEntry, None, None]:
 
-        invalid_to_visit: List[Node] = []
-        valid_to_visit: List[Node] = []
+        leafs: List[Leaf] = []
 
         # Reset counter
         for node in self.items():
             node._num_paths = 0
             if isinstance(node, Leaf):
-                if node.is_valid:
-                    valid_to_visit.append(node)
-                else:
-                    invalid_to_visit.append(node)
+                leafs.append(node)
 
-        # valid_to_visit.sort(by_reachability);
-        yield from Node._generate_paths(valid_to_visit, True)
-
-        # invalid_to_visit.sort(by_reachability);
-        yield from Node._generate_paths(invalid_to_visit, False)
+        yield from Node._generate_paths(leafs)
 
 
 class Leaf(Node):
