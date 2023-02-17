@@ -122,3 +122,25 @@ class GeneratePathsTest(TestCase):
         self.assertEqual(root.count, 1)
         self.assertEqual(node1.count, 1)
         self.assertEqual(node2.count, 1)
+
+    def test_inverting(self):
+        root = MockDecision('root', False)
+
+        # valid child, inverting transition => invalid
+        child1 = MockLeaf('leaf', True)
+        root.add_transition(child1, True)
+
+        # invalid child, non-inverting transition => invalid
+        child2 = MockLeaf('leaf', False)
+        root.add_transition(child2, False)
+
+        # invalid child, 2 inverting transitions => invalid
+        sub_root = MockDecision('sub', False)
+        child3 = MockLeaf('leaf', False)
+        root.add_transition(sub_root, True)
+        sub_root.add_transition(child3, True)
+
+        paths = list(root.generate_paths())
+        self.assertEqual(len(paths), 3)
+        for i in paths:
+            self.assertFalse(i.is_valid)

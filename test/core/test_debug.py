@@ -9,7 +9,7 @@ class CheckTest(TestCase):
         child = NoOpLeaf(None, True)
         root = NoOpDecision(None)
         child.incoming_transitions.append( IncomingTransition(root, 1) )
-        root.outgoing_transitions.append( OutgoingTransition(child) )
+        root.outgoing_transitions.append( OutgoingTransition(child, False) )
         with self.assertRaises(GraphException):
             check_consistency(child)
         child.incoming_transitions[0].outgoing_idx = 0
@@ -20,7 +20,7 @@ class CheckTest(TestCase):
         child = NoOpLeaf(None, True)
         root = NoOpDecision(None)
         child.incoming_transitions.append( IncomingTransition(dummy, 0) )
-        root.outgoing_transitions.append( OutgoingTransition(child) )
+        root.outgoing_transitions.append( OutgoingTransition(child, False) )
         with self.assertRaises(GraphException):
             check_consistency(child)
         child.incoming_transitions[0].source = root
@@ -31,7 +31,7 @@ class CheckTest(TestCase):
         child = NoOpLeaf(None, True)
         root = NoOpDecision(None)
         child.incoming_transitions.append( IncomingTransition(root, 0) )
-        root.outgoing_transitions.append( OutgoingTransition(dummy) )
+        root.outgoing_transitions.append( OutgoingTransition(dummy, False) )
         with self.assertRaises(GraphException):
             check_consistency(child)
         root.outgoing_transitions[0].target = child
@@ -41,7 +41,7 @@ class CheckTest(TestCase):
         child = NoOpLeaf(None, True)
         root = NoOpDecision(None)
         child.incoming_transitions.append( IncomingTransition(root, 1) )
-        root.outgoing_transitions.append( OutgoingTransition(child) )
+        root.outgoing_transitions.append( OutgoingTransition(child, False ))
         with self.assertRaises(GraphException):
             check_consistency(root)
         child.incoming_transitions[0].outgoing_idx = 0
@@ -50,7 +50,7 @@ class CheckTest(TestCase):
     def test_no_matching_incoming(self):
         child = NoOpLeaf(None, True)
         root = NoOpDecision(None)
-        root.outgoing_transitions.append( OutgoingTransition(child) )
+        root.outgoing_transitions.append( OutgoingTransition(child, False) )
         with self.assertRaises(GraphException):
             check_consistency(root)
         child.incoming_transitions.append( IncomingTransition(root, 0) )

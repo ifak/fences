@@ -32,6 +32,9 @@ def render(node: Node) -> pydot.Dot:
         graph.add_node(_to_graph_node(i))
         if isinstance(i, Decision):
             for transition in i.outgoing_transitions:
-                graph.add_edge(pydot.Edge(str(id(i)), str(id(transition.target))))
+                attrs = {}
+                if transition.is_inverting:
+                    attrs['arrowhead'] = 'empty'
+                graph.add_edge(pydot.Edge(str(id(i)), str(id(transition.target)), **attrs))
 
     return graph

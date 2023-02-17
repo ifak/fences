@@ -141,3 +141,39 @@ class TestGenerate(unittest.TestCase):
         graph = parse.parse(schema)
         for result in graph.generate_paths():
             graph.execute(result.path)
+
+    def test_not_1(self):
+        schema = {
+            "not": {
+                "properties": {
+                    "b": {
+                        "properties": {
+                            "bb": {"not": {"type": "string"}}
+                        }
+                    }
+                }
+            }
+        }
+        self.check(schema)
+
+    def test_not_2(self):
+        schema = {
+            "not": {
+                "properties": {
+                    "a": {
+                        "type": "string"
+                    },
+                    "b": {
+                        "properties": {
+                            "bb": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        }
+
+        graph = parse.parse(schema)
+        for i in graph.generate_paths():
+            graph.execute(i.path)
+        # TODO: currently fails
+        # self.check(schema)

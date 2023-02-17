@@ -102,6 +102,7 @@ def default_config():
             KeyHandler('enum', parse_enum),
             KeyHandler('type', parse_type),
             KeyHandler('properties', parse_object),
+            KeyHandler('not', parse_not),
         ],
         type_handlers={
             'object': parse_object,
@@ -192,6 +193,12 @@ def parse_enum(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPo
         None, False, "#" * (max_length+1)))
     return root
 
+def parse_not(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
+    d = _read_dict(data, 'not', unparsed_keys)
+    subroot = parse_dict(d, config, path + 'not')
+    root = NoOpDecision(str(path), False)
+    root.add_transition(subroot, True)
+    return root
 
 def parse_reference(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     ref = _read_string(data, '$ref', unparsed_keys)
