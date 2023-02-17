@@ -144,3 +144,41 @@ class GeneratePathsTest(TestCase):
         self.assertEqual(len(paths), 3)
         for i in paths:
             self.assertFalse(i.is_valid)
+
+class OptimizeTest(TestCase):
+
+    def test_do_nothing(self):
+        root = MockDecision('root', False)
+        child = MockLeaf('leaf', True)
+        root.add_transition(child)
+        self.assertEqual(len(list(root.items())), 2)
+        root.optimize()
+        self.assertEqual(len(list(root.items())), 2)
+
+    def test_merge_many(self):
+        root = MockDecision('root', False)
+        n = root
+        for _ in range(9):
+            n.add_transition(NoOpDecision(None, True))
+            n = n.outgoing_transitions[0].target
+        child = MockLeaf('leaf', True)
+        n.add_transition(child)
+        self.assertEqual(len(list(root.items())), 2+9)
+        root.optimize()
+        self.assertEqual(len(list(root.items())), 2)
+        self.assertFalse(root.outgoing_transitions[0].is_inverting)
+        self.assertTrue(root.all_transitions)
+
+    def test_merge_many_inverting(self):
+        root = MockDecision('root', False)
+        n = root
+        for _ in range(9):
+            n.add_transition(NoOpDecision(None, False), True)
+            n = n.outgoing_transitions[0].target
+        child = MockLeaf('leaf', True)
+        n.add_transition(child)
+        self.assertEqual(len(list(root.items())), 2+9)
+        root.optimize()
+        self.assertEqual(len(list(root.items())), 2)
+        self.assertTrue(root.outgoing_transitions[0].is_inverting)
+        self.assertFalse(root.all_transitions)

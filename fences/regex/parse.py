@@ -340,6 +340,8 @@ def parse(regex: str) -> Node:
     assert isinstance(tree, Tree)
     assert tree.data == 'start'
     root = StartConverter(tree).to_node()
+    root.optimize()
+
     create_input = CreateInputNode()
     super_root = NoOpDecision(None, True)
     create_input.add_transition(super_root)

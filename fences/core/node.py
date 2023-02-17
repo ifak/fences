@@ -222,6 +222,13 @@ class Node:
                 else:
                     path_idx += 1
 
+    def optimize(self):
+        """
+        Reduces the number of nodes in this graph while keeping the meaning the same.
+        This helps to speed up subsequent operations.
+        """
+        pass
+
 class Leaf(Node):
     def __init__(self, id: str, is_valid: bool) -> None:
         super().__init__(id)
@@ -265,6 +272,32 @@ class Decision(Node):
         for transition in self.outgoing_transitions:
             yield from transition.target._items(already_visited)
 
+    def optimize(self):
+        merge_with = self
+        is_inverting = False
+        while True:
+            if len(merge_with.outgoing_transitions) != 1: break
+            successor = merge_with.outgoing_transitions[0].target
+            if not isinstance(successor, NoOpDecision): break
+            if merge_with.outgoing_transitions[0].is_inverting:
+                is_inverting = not is_inverting
+            merge_with = successor
+
+        if merge_with is self:
+            return
+
+        self.outgoing_transitions = merge_with.outgoing_transitions
+        self.all_transitions = merge_with.all_transitions
+        if is_inverting:
+            for i in self.outgoing_transitions:
+                i.is_inverting = not i.is_inverting
+        for i in self.outgoing_transitions:
+            for j in i.target.incoming_transitions:
+                if j.source is merge_with:
+                    j.source = self
+
+        for i in self.outgoing_transitions:
+            i.target.optimize()
 
 class Reference(Node):
     def __init__(self, id: str, reference: str) -> None:

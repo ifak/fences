@@ -353,6 +353,8 @@ def parse(data: dict, config=None) -> Node:
 
     root = root.resolve(all_nodes)
 
+    root.optimize()
+
     # prepend input / output nodes
     create_input = CreateInputNode()
     super_root = NoOpDecision(None, True)
