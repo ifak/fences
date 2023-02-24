@@ -1,7 +1,7 @@
 import re
 from typing import Set, Dict, List, Optional, Union
 
-from .exceptions import ParseException
+from .exceptions import JsonSchemaException
 from .config import Config, KeyHandler, StringGenerators, BoolValues
 from .json_pointer import JsonPointer
 from .string import generate_random_string, StringProperties
@@ -142,12 +142,12 @@ def default_config():
 def _read_typesafe(data: dict, key: str, unparsed_keys: Set[str], type, typename, default: any):
     if key not in data:
         if default is None:
-            raise ParseException(f"'{key}' is missing")
+            raise JsonSchemaException(f"'{key}' is missing", None)
         else:
             return default
     value = data[key]
     if not isinstance(value, type):
-        raise ParseException(f"{value} is not a {typename}")
+        raise JsonSchemaException(f"{value} is not a {typename}", None)
     unparsed_keys.remove(key)
     return value
 
@@ -212,11 +212,11 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
     for idx, token in enumerate(_read_list(data, 'required', unparsed_keys, [])):
         sub_path = path + 'required' + idx
         if not isinstance(token, str):
-            raise ParseException(f"'{token}' is not a string at ${sub_path}")
+            raise JsonSchemaException(f"'{token}' is not a string at ${sub_path}", sub_path)
         if token in required:
-            raise ParseException(f"Duplicate token '{token}' in ${sub_path}")
+            raise JsonSchemaException(f"Duplicate token '{token}' in ${sub_path}", sub_path)
         if token not in props:
-            raise ParseException(f"Token '{token}' is not a property at ${sub_path}")
+            raise JsonSchemaException(f"Token '{token}' is not a property at ${sub_path}", sub_path)
         required.add(token)
 
     root = CreateObjectNode(str(path))
@@ -246,7 +246,7 @@ def parse_string(data: dict, config: Config, unparsed_keys: Set[str], path: Json
         try:
             regex = re.compile(pattern)
         except re.error:
-            raise ParseException(f"Invalid pattern '{pattern}' at {path}")
+            raise JsonSchemaException(f"Invalid pattern '{pattern}' at {path}", path)
     else:
         regex = None
     # TODO: use format
@@ -298,22 +298,21 @@ def parse_boolean(data: dict, config: Config, unparsed_keys: Set[str], path: Jso
 def parse_type(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     type = _read_string(data, 'type', unparsed_keys)
     if type not in config.type_handlers:
-        raise ParseException(f"Invalid type '{type}' at {path}")
+        raise JsonSchemaException(f"Invalid type '{type}' at {path}", path)
     return config.type_handlers[type](data, config, unparsed_keys, path)
 
 
 def parse_dict(data: dict, config: Config, path: JsonPointer):
     if not isinstance(data, dict):
-        raise ParseException(f"Expected dict, got {type(data)}")
+        raise JsonSchemaException(f"Expected dict, got {type(data)}", path)
     unparsed_keys = set(data.keys())
     for handler in config.key_handlers:
         if handler.key in data:
             result = handler.callback(data, config, unparsed_keys, path)
             if unparsed_keys:
-                raise ParseException(
-                    f"Unknown keys {unparsed_keys} at '{path}'")
+                raise JsonSchemaException(f"Unknown keys {unparsed_keys} at '{path}'", path)
             return result
-    raise ParseException(f"Cannot parse {data} at {path}")
+    raise JsonSchemaException(f"Cannot parse {data} at {path}", path)
 
 
 def parse(data: dict, config=None) -> Node:
@@ -321,7 +320,7 @@ def parse(data: dict, config=None) -> Node:
         config = default_config()
 
     if not isinstance(data, dict):
-        raise ParseException(f"Expected dict, got {type(data)}")
+        raise JsonSchemaException(f"Expected dict, got {type(data)}", path)
 
     # Skip meta data
     unparsed_keys = set(data.keys())
@@ -344,12 +343,11 @@ def parse(data: dict, config=None) -> Node:
         if handler.key in data:
             result = handler.callback(data, config, unparsed_keys, path)
             if unparsed_keys:
-                raise ParseException(
-                    f"Unknown keys {unparsed_keys} at '{path}'")
+                raise JsonSchemaException(f"Unknown keys {unparsed_keys} at '{path}'", path)
             root = result
             break
     if not root:
-        raise ParseException(f"Cannot parse {data} at {path}")
+        raise JsonSchemaException(f"Cannot parse {data} at {path}", path)
 
     root = root.resolve(all_nodes)
 

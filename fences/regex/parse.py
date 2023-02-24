@@ -1,5 +1,5 @@
 from fences.core.node import Decision, Node, Leaf, NoOpDecision, NoOpLeaf
-from .exception import ParseException, InternalParserException
+from .exception import RegexException, InternalParserException
 from typing import Set, Dict, Union
 import string
 
@@ -57,7 +57,7 @@ def _parse_repetition(tree: Tree[Token]) -> "MatchConverter.Repetition":
             first_value = int(first.value)
             second_value = int(second.value)
             if first_value > second_value:
-                raise ParseException(
+                raise RegexException(
                     f"Invalid range: {first_value} > {second_value}")
             return Repetition(first_value, second_value)
         raise InternalParserException(
@@ -189,7 +189,7 @@ class CharacterRangeConverter(TreeConverter):
         assert isinstance(first, Token)
         assert isinstance(second, Token)
         if ord(first.value) > ord(second.value):
-            raise ParseException(
+            raise RegexException(
                 f"Invalid character range: {first.value}-{second.value}")
         root = NoOpDecision(None, self.all_transitions)
         root.add_transition(AppendCharsLeaf(None, True, first.value))
@@ -218,7 +218,7 @@ class CharacterGroupItemConverter(TreeConverter):
         try:
             sample = samples[str(token)]
         except KeyError as e:
-            raise ParseException(f"Unknown character class {e}")
+            raise RegexException(f"Unknown character class {e}")
         return AppendCharsLeaf(None, True, sample)
 
 

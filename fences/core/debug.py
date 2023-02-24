@@ -1,7 +1,7 @@
 from .node import Node, Decision
-from .exception import GraphException
+from .exception import FencesException
 
-class CheckGraphException(GraphException):
+class ConsistencyException(FencesException):
     pass
 
 def check_consistency(root: Node):
@@ -16,12 +16,12 @@ def check_consistency(root: Node):
         for transition in node.incoming_transitions:
             idx = transition.outgoing_idx
             if not isinstance(transition.source, Decision):
-                raise CheckGraphException(f"Source of incoming transition must be a Decision")
+                raise ConsistencyException(f"Source of incoming transition must be a Decision")
             if idx >= len(transition.source.outgoing_transitions):
-                raise CheckGraphException(f"Outgoing index out of range")
+                raise ConsistencyException(f"Outgoing index out of range")
             actual = transition.source.outgoing_transitions[idx].target
             if node is not actual:
-                raise CheckGraphException(f"Invalid transition at ${node.id}: != {actual.id}")
+                raise ConsistencyException(f"Invalid transition at ${node.id}: != {actual.id}")
 
         # check outgoing transitions
         if isinstance(node, Decision):
@@ -32,14 +32,14 @@ def check_consistency(root: Node):
                         found = True
                         break
                 if not found:
-                    raise CheckGraphException(f"No corresponding incoming transition")
+                    raise ConsistencyException(f"No corresponding incoming transition")
 
     # check if all ids are unique
     all_ids = set()
     for node in root.items():
         if node.id is not None:
             if node.id in all_ids:
-                raise CheckGraphException(f"Duplicate id '{node.id}'")
+                raise ConsistencyException(f"Duplicate id '{node.id}'")
             all_ids.add(node.id)
 
     # check that each node has at least one valid leaf

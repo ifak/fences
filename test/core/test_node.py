@@ -49,14 +49,16 @@ class ResolveTest(TestCase):
     def test_id_not_exists(self):
         root = Reference('1', 'invalid_ref')
         child = NoOpLeaf('2', True)
-        with self.assertRaises(ResolveReferenceException):
+        with self.assertRaises(ResolveReferenceException) as e:
             root.resolve([child])
+            self.assertEqual(e.node_id, 'invalid_ref')
 
     def test_duplicate_id(self):
         root = NoOpDecision('1')
         child = NoOpDecision('1')
-        with self.assertRaises(ResolveReferenceException):
+        with self.assertRaises(ResolveReferenceException) as e:
             root.resolve([child])
+            self.assertEqual(e.node_id, '1')
 
     def test_success(self):
         root = Reference('1', '2')

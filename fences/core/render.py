@@ -1,6 +1,6 @@
 import pydot
 
-from .exception import GraphException
+from .exception import InternalException
 from .node import Node, Decision, Leaf, Reference
 
 def _to_graph_node(node: Node):
@@ -22,7 +22,7 @@ def _to_graph_node(node: Node):
     elif isinstance(node, Leaf):
         attrs['color'] = 'green' if node.is_valid else 'red'
     else:
-        raise GraphException(f"Unknown type '{type(node)}'") # pragma: no cover
+        raise InternalException(f"Unknown type '{type(node)}'") # pragma: no cover
     return pydot.Node(str(id(node)), label="\n".join(lines), **attrs)
 
 def render(node: Node) -> pydot.Dot:

@@ -1,4 +1,4 @@
-from .exception import GraphException, ResolveReferenceException
+from .exception import ResolveReferenceException, InternalException
 from typing import List, Optional, Generator, Set, Dict, Tuple
 from dataclasses import dataclass, field
 
@@ -63,7 +63,7 @@ class Node:
 
         def insert(node: Node):
             if node.id and node.id in nodes_by_id:
-                raise ResolveReferenceException(f"id '{node.id}' already exists")
+                raise ResolveReferenceException(f"id '{node.id}' already exists", node.id)
             nodes_by_id[node.id] = node
         for node in nodes:
             for n in node.items():
@@ -101,12 +101,12 @@ class Node:
         """
         idx, result = self._execute(path, 0, data)
         if idx != len(path):
-            raise GraphException("Path not fully consumed")
+            raise InternalException("Path not fully consumed")
         return result
 
     def _execute(self, path: Path, path_idx: int, data: any) -> Tuple[int, any]:
         if path_idx > len(path):
-            raise GraphException(f"path_idx ({path_idx}) > len(path) ({len(path)})")
+            raise InternalException(f"path_idx ({path_idx}) > len(path) ({len(path)})")
 
         data = self.apply(data)
 
@@ -273,31 +273,39 @@ class Decision(Node):
             yield from transition.target._items(already_visited)
 
     def optimize(self):
+        visited = set()
+        self._optimize(visited)
+
+    def _optimize(self, visited: Set):
+        if id(self) in visited: return
+        visited.add(id(self))
+
         merge_with = self
         is_inverting = False
         while True:
             if len(merge_with.outgoing_transitions) != 1: break
             successor = merge_with.outgoing_transitions[0].target
+            if len(successor.incoming_transitions) != 1: break
             if not isinstance(successor, NoOpDecision): break
+            if id(successor) in visited: break
             if merge_with.outgoing_transitions[0].is_inverting:
                 is_inverting = not is_inverting
             merge_with = successor
 
-        if merge_with is self:
-            return
-
-        self.outgoing_transitions = merge_with.outgoing_transitions
-        self.all_transitions = merge_with.all_transitions
-        if is_inverting:
+        if merge_with is not self:
+            self.outgoing_transitions = merge_with.outgoing_transitions
+            self.all_transitions = merge_with.all_transitions
+            if is_inverting:
+                for i in self.outgoing_transitions:
+                    i.is_inverting = not i.is_inverting
             for i in self.outgoing_transitions:
-                i.is_inverting = not i.is_inverting
-        for i in self.outgoing_transitions:
-            for j in i.target.incoming_transitions:
-                if j.source is merge_with:
-                    j.source = self
+                for j in i.target.incoming_transitions:
+                    if j.source is merge_with:
+                        j.source = self
 
         for i in self.outgoing_transitions:
-            i.target.optimize()
+            if isinstance(i.target, Decision):
+                i.target._optimize(visited)
 
 class Reference(Node):
     def __init__(self, id: str, reference: str) -> None:
@@ -308,7 +316,7 @@ class Reference(Node):
         try:
             return nodes_by_id[self.reference].target(nodes_by_id)
         except KeyError as e:
-            raise ResolveReferenceException(f"Unknown reference '{e}'")
+            raise ResolveReferenceException(f"Unknown reference '{self.reference}'", self.reference)
 
 
 class NoOpDecision(Decision):
