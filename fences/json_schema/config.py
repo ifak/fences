@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Set, List, Dict
 
 from .json_pointer import JsonPointer
-from .string import StringProperties
+from ..core.random import StringProperties
 
 from fences.core.node import Decision
 

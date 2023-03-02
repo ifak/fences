@@ -3,7 +3,7 @@ from .exception import RegexException, InternalParserException
 from typing import Set, Dict, Union
 import string
 
-from .grammar import Lark_StandAlone, Tree, Token
+from .grammar import Lark_StandAlone, Tree, Token, LarkError
 _parser = Lark_StandAlone()
 
 
@@ -49,13 +49,17 @@ def _parse_repetition(tree: Tree[Token]) -> "MatchConverter.Repetition":
     qualifier = repetition_type.children[0]
     if isinstance(qualifier, Tree):
         if qualifier.data == 'range':
-            assert len(qualifier.children) == 2
+            assert len(qualifier.children) in [1, 2]
             first = qualifier.children[0]
-            second = qualifier.children[1]
             assert isinstance(first, Token)
-            assert isinstance(second, Token)
             first_value = int(first.value)
-            second_value = int(second.value)
+
+            if len(qualifier.children) == 2:
+                second = qualifier.children[1]
+                assert isinstance(second, Token)
+                second_value = int(second.value)
+            else:
+                second_value = first_value
             if first_value > second_value:
                 raise RegexException(
                     f"Invalid range: {first_value} > {second_value}")
@@ -335,7 +339,10 @@ def unescape(s: str) -> str:
 
 def parse(regex: str) -> Node:
     regex = unescape(regex)
-    tree: Tree[Token] = _parser.parse(regex)
+    try:
+        tree: Tree[Token] = _parser.parse(regex)
+    except LarkError as e:
+        raise RegexException(f"Cannot parse '{regex}' as regex: {e}")
     # print(tree.pretty())
     assert isinstance(tree, Tree)
     assert tree.data == 'start'

@@ -189,6 +189,10 @@ class Node:
             self.outgoing_transitions[path_idx].target._forward(backward_path, forward_path, visited, on_valid_path)
 
     def generate_paths(self) -> Generator[ResultEntry, None, None]:
+        """
+        Generates as many paths until all nodes in the graph are reached.
+        Execute a path using execute().
+        """
 
         to_visit: List[Leaf] = []
 

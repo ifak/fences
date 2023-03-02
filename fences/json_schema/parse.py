@@ -4,7 +4,7 @@ from typing import Set, Dict, List, Optional, Union
 from .exceptions import JsonSchemaException
 from .config import Config, KeyHandler, StringGenerators, BoolValues
 from .json_pointer import JsonPointer
-from .string import generate_random_string, StringProperties
+from ..core.random import generate_random_string, StringProperties
 
 from fences.core.node import Decision, Leaf, Node, Reference, NoOpLeaf, NoOpDecision
 
@@ -243,10 +243,7 @@ def parse_string(data: dict, config: Config, unparsed_keys: Set[str], path: Json
     root = NoOpDecision(str(path))
     pattern = _read_string(data, 'pattern', unparsed_keys, '')
     if pattern:
-        try:
-            regex = re.compile(pattern)
-        except re.error:
-            raise JsonSchemaException(f"Invalid pattern '{pattern}' at {path}", path)
+        regex = pattern
     else:
         regex = None
     # TODO: use format
