@@ -60,3 +60,5 @@ class CheckTest(TestCase):
         child = NoOpLeaf('x', True)
         root.add_transition(child)
         root.add_transition(child)
+        with self.assertRaises(ConsistencyException):
+            check_consistency(root)

@@ -9,11 +9,11 @@ class RenderTest(TestCase):
         render(NoOpDecision(None))
 
     def test_success(self):
-        root = NoOpDecision('root')
+        root = NoOpDecision('root', True)
         child = NoOpDecision(None)
         leaf = NoOpLeaf(None, True)
         ref = Reference('foo', 'bar')
         root.add_transition(child)
-        child.add_transition(leaf)
+        child.add_transition(leaf, True)
         child.add_transition(ref)
         render(root)

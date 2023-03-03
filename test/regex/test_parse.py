@@ -6,6 +6,8 @@ class TestParse(unittest.TestCase):
 
     def check(self, s):
         graph = parse.parse(s)
+        for i in graph.items():
+            i.description()
         regex = re.compile(s)
         for i in graph.generate_paths():
             s = graph.execute(i.path)

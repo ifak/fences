@@ -1,7 +1,9 @@
 from unittest import TestCase
-from xmlschema import XMLSchema
+from xmlschema import XMLSchema, XMLSchemaException
 from xml.etree import ElementTree
 from fences import parse_xml_schema
+from fences.core.debug import check_consistency
+from fences.core.render import render
 
 from xml.dom import minidom
 import os
@@ -15,26 +17,32 @@ class GenerateTest(TestCase):
         s = ElementTree.tostring(e.getroot(), )
         print(minidom.parseString(s).toprettyxml(indent="   "))
 
-    def check(self, schema, debug=False):
-        schema = "".join([
-            '<?xml version="1.0"?>',
-            '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
-            schema,
-            '</xs:schema>'
-        ])
+    def check(self, schema, debug=False, wrap=True):
+        if wrap:
+            schema = "".join([
+                '<?xml version="1.0"?>',
+                '<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
+                schema,
+                '</xs:schema>'
+            ])
         et = ElementTree.fromstring(schema)
         graph = parse_xml_schema(et)
+        check_consistency(graph)
         for i in graph.items():
             i.description()
         if debug:
-            from fences.core.render import render
             render(graph).write_svg('graph.svg')
         validator = XMLSchema(schema)
         for i in graph.generate_paths():
             sample: ElementTree.ElementTree = graph.execute(i.path)
             if debug:
+                print("Valid:") if i.is_valid else print("Invalid:")
                 self.dump(sample)
-            validator.validate(sample)
+            if i.is_valid:
+                validator.validate(sample)
+            else:
+                with self.assertRaises(XMLSchemaException):
+                    validator.validate(sample)
 
     def test_simple(self):
         schema = """
@@ -139,13 +147,59 @@ class GenerateTest(TestCase):
             """
         self.check(schema)
 
+    def test_extension_simple(self):
+        schema = """
+            <xs:simpleType name="size">
+                <xs:restriction base="xs:string">
+                    <xs:enumeration value="small" />
+                    <xs:enumeration value="medium" />
+                    <xs:enumeration value="large" />
+                </xs:restriction>
+            </xs:simpleType>
+
+            <xs:element name="test">
+                <xs:complexType>
+                    <xs:simpleContent>
+                        <xs:extension base="size">
+                        <xs:attribute name="sex">
+                            <xs:simpleType>
+                            <xs:restriction base="xs:string">
+                                <xs:enumeration value="male" />
+                                <xs:enumeration value="female" />
+                            </xs:restriction>
+                            </xs:simpleType>
+                        </xs:attribute>
+                        </xs:extension>
+                    </xs:simpleContent>
+                </xs:complexType>
+            </xs:element>
+        """
+        self.check(schema)
+
+    def test_extension_complex(self):
+        schema = """
+            <xs:element name="employee" type="fullpersoninfo"/>
+                <xs:complexType name="personinfo">
+                    <xs:sequence>
+                        <xs:element name="firstname" type="xs:string"/>
+                        <xs:element name="lastname" type="xs:string"/>
+                    </xs:sequence>
+                </xs:complexType>
+
+                <xs:complexType name="fullpersoninfo">
+                    <xs:complexContent>
+                        <xs:extension base="personinfo">
+                            <xs:sequence>
+                                <xs:element name="address" type="xs:string"/>
+                                <xs:element name="city" type="xs:string"/>
+                                <xs:element name="country" type="xs:string"/>
+                            </xs:sequence>
+                        </xs:extension>
+                    </xs:complexContent>
+                </xs:complexType>"""
+        self.check(schema)
+
     def test_ua_nodeset(self):
         with open(os.path.join(SCRIPT_DIR, 'fixtures', 'UANodeSet.xsd')) as file:
             schema = file.read()
-        et = ElementTree.fromstring(schema)
-        graph = parse_xml_schema(et)
-        return # TODO rest currently fails
-        validator = XMLSchema(schema)
-        for i in graph.generate_paths():
-            sample: ElementTree.ElementTree = graph.execute(i.path)
-            validator.validate(sample)
+        self.check(schema, wrap=False)

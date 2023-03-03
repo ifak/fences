@@ -1,5 +1,5 @@
 from unittest import TestCase
-from fences.core.exception import ResolveReferenceException
+from fences.core.exception import ResolveReferenceException, FencesException
 from fences.core.node import NoOpDecision, NoOpLeaf, Reference, Leaf, Decision
 from fences.core.debug import check_consistency
 
@@ -146,6 +146,32 @@ class GeneratePathsTest(TestCase):
         self.assertEqual(len(paths), 3)
         for i in paths:
             self.assertFalse(i.is_valid)
+
+    def test_no_valid_leaf(self):
+        root = NoOpDecision('root', True)
+        child1 = NoOpLeaf('child_1', False)
+        child2 = NoOpLeaf('child_2', False)
+        root.add_transition(child1)
+        root.add_transition(child2)
+        with self.assertRaises(FencesException):
+            for _ in root.generate_paths(): pass
+
+    def test_no_valid_leaf2(self):
+        root = NoOpDecision('root', True)
+        subroot1 = NoOpDecision('subroot1', False)
+        subroot2 = NoOpDecision('subroot1', False)
+        child11 = NoOpLeaf('child_11', False)
+        child12 = NoOpLeaf('child_12', False)
+        child21 = NoOpLeaf('child_21', False)
+        child22 = NoOpLeaf('child_22', False)
+        root.add_transition(subroot1)
+        root.add_transition(subroot2)
+        subroot1.add_transition(child11)
+        subroot1.add_transition(child12)
+        subroot2.add_transition(child21)
+        subroot2.add_transition(child22)
+        with self.assertRaises(FencesException):
+            for _ in root.generate_paths(): pass
 
 class OptimizeTest(TestCase):
 

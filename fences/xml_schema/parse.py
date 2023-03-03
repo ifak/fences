@@ -1,10 +1,9 @@
 from .exception import XmlSchemaException
-from .config import Config
+from .config import Config, TypeHandler
 
 from fences.core.node import Leaf, Decision, NoOpLeaf, NoOpDecision, Node, Reference
 from fences.core.random import generate_random_number, generate_random_string, StringProperties
 
-from fences import parse_regex
 from xml.etree import ElementTree
 from typing import Set, List, Optional, Dict
 
@@ -27,17 +26,51 @@ def default_config() -> Config:
             'any': parse_any,
         },
         buildin_types={
-            'xs:string': lambda _: ['foo', generate_random_string(StringProperties(1))],
-            'xs:dateTime': lambda _: ['foo', generate_random_string(StringProperties(1))],
-            'xs:positiveInteger': lambda _: [generate_random_number(min_value=0)],
-            'xs:integer': lambda _: [generate_random_number(min_value=0)],
-            'xs:boolean': lambda _: [True, False],
-            'xs:unsignedInt': lambda _: [generate_random_number(min_value=0)],
-            'xs:unsignedShort': lambda _: [generate_random_number(min_value=0)],
-            'xs:unsignedByte': lambda _: [generate_random_number(min_value=0)],
-            'xs:int': lambda _: [generate_random_number(min_value=0)],
-            'xs:double': lambda _: [generate_random_number(min_value=0)],
-            'xs:decimal': lambda _: [generate_random_number()],
+            'xs:string': TypeHandler(
+                valid=lambda _: [
+                    'foo', generate_random_string(StringProperties(1))],
+                invalid=lambda _: []
+            ),
+            'xs:dateTime': TypeHandler(
+                valid=lambda _: ['2001-10-26T21:32:52'],
+                invalid=lambda _: ["foo"]
+            ),
+            'xs:positiveInteger': TypeHandler(
+                valid=lambda _: [generate_random_number(min_value=0)],
+                invalid=lambda _: ["-10", "foo"]
+            ),
+            'xs:integer': TypeHandler(
+                valid=lambda _: [generate_random_number(min_value=0)],
+                invalid=lambda _: ["xyz"]
+            ),
+            'xs:boolean': TypeHandler(
+                valid=lambda _: ["true", "false", "0", "1"],
+                invalid=lambda _: ["foo"]
+            ),
+            'xs:unsignedInt': TypeHandler(
+                valid=lambda _: [generate_random_number(min_value=0)],
+                invalid=lambda _: ["-10", "bar"]
+            ),
+            'xs:unsignedShort': TypeHandler(
+                valid=lambda _: [generate_random_number(min_value=0)],
+                invalid=lambda _: ["-10", "bar"]
+            ),
+            'xs:unsignedByte': TypeHandler(
+                valid=lambda _: [generate_random_number(min_value=0)],
+                invalid=lambda _: ["-10", "bar"]
+            ),
+            'xs:int': TypeHandler(
+                valid=lambda _: [generate_random_number(min_value=0)],
+                invalid=lambda _: ["bar"]
+            ),
+            'xs:double': TypeHandler(
+                valid=lambda _: [generate_random_number(min_value=0)],
+                invalid=lambda _: ["bar"]
+            ),
+            'xs:decimal': TypeHandler(
+                valid=lambda _: [generate_random_number()],
+                invalid=lambda _: ["bar"]
+            ),
         },
         restriction_handlers={
             'pattern': parse_string_restriction,
@@ -60,19 +93,23 @@ class Binding:
 
 
 class StartNode(Decision):
+
     def apply(self, data: any) -> Binding:
         return Binding(ElementTree.Element('dummy'), None)
 
     def description(self) -> str:
-        "Start"
+        return "Start"
 
 
 class FetchOutput(Leaf):
-    def __init__(self) -> None:
+    def __init__(self, namespace: Optional[str]) -> None:
         super().__init__(None, True)
+        self.namespace = namespace
 
     def apply(self, data: Binding) -> ElementTree.ElementTree:
         root = next(iter(data.element))
+        if self.namespace:
+            root.attrib['xmlns'] = self.namespace
         return ElementTree.ElementTree(root)
 
     def description(self) -> str:
@@ -171,7 +208,7 @@ def parse_restriction(element: ElementTree.Element, config: Config, parsed_attri
     # However, Fences is not meant to be a schema checker, so we discard it here
 
     if len(element) == 0:
-        return Reference(None, base)
+        return resolve_type(base, config)
 
     # Special handling for enumerations
     if _get_tag(next(iter(element))) == 'enumeration':
@@ -226,7 +263,9 @@ def parse_extension(element: ElementTree.Element, config: Config, parsed_attribu
     root = NoOpDecision(None, True)
     base = _lookup(element.attrib, 'base', parsed_attributes)
 
-    root.add_transition(Reference(None, base))
+    root.add_transition(
+        resolve_type(base, config)
+    )
 
     for child in element:
         root.add_transition(
@@ -244,7 +283,7 @@ def _parse_occurs(element: ElementTree.Element):
         except ValueError as e:
             raise XmlSchemaException(f"Invalid value for 'minOccurs': {e}")
     else:
-        min_occurs = 0
+        min_occurs = 1
 
     if 'maxOccurs' in element.attrib:
         s = element.attrib['maxOccurs']
@@ -256,9 +295,40 @@ def _parse_occurs(element: ElementTree.Element):
             except ValueError as e:
                 raise XmlSchemaException(f"Invalid value for 'maxOccurs': {e}")
     else:
-        max_occurs = None
+        max_occurs = 1
 
     return min_occurs, max_occurs
+
+
+def _repeat(child: Node, min_occurs: int, max_occurs: Optional[int]) -> Node:
+
+    root = NoOpDecision(None, False)
+    root.add_transition(NoOpLeaf(None, is_valid=min_occurs == 0))
+
+    if min_occurs > 0:
+        subroot = NoOpDecision(None, True)
+        for _ in range(min_occurs):
+            subroot.add_transition(child)
+        root.add_transition(subroot)
+
+    if min_occurs > 1:
+        subroot = NoOpDecision(None, True)
+        for _ in range(min_occurs - 1):
+            subroot.add_transition(child, True)
+        root.add_transition(subroot, False)
+
+    if max_occurs is not None:
+        if min_occurs > max_occurs:
+            raise XmlSchemaException(
+                f"minOccurs = {min_occurs} > maxOccurs = {min_occurs}")
+
+        if max_occurs != min_occurs:
+            subroot = NoOpDecision(None, True)
+            for _ in range(max_occurs):
+                subroot.add_transition(child)
+            root.add_transition(subroot)
+
+    return root
 
 
 def parse_sequence(element: ElementTree.Element, config: Config, parsed_attributes: Set[str]) -> Node:
@@ -268,10 +338,11 @@ def parse_sequence(element: ElementTree.Element, config: Config, parsed_attribut
         name = None
     root = NoOpDecision(None, True)
     for i in element:
-        # TODO: use this
-        _parse_occurs(i)
+        min_occurs, max_occurs = _parse_occurs(i)
         child_node = parse_xml_element(i, config)
-        root.add_transition(child_node)
+        root.add_transition(
+            _repeat(child_node, min_occurs, max_occurs)
+        )
     return root
 
 
@@ -282,10 +353,11 @@ def parse_choice(element: ElementTree.Element, config: Config, parsed_attributes
         name = None
     root = NoOpDecision(None, False)
     for i in element:
-        # TODO: use this
-        _parse_occurs(i)
+        min_occurs, max_occurs = _parse_occurs(i)
         child_node = parse_xml_element(i, config)
-        root.add_transition(child_node)
+        root.add_transition(
+            _repeat(child_node, min_occurs, max_occurs)
+        )
     return root
 
 
@@ -295,9 +367,9 @@ def parse_attribute(element: ElementTree.Element, config: Config, parsed_attribu
 
     name = _lookup(element.attrib, 'name', parsed_attributes)
     required = False
-    if 'use' in element.attrib and _lookup(element.attrib, 'use', parsed_attributes) == True:
+    if 'use' in element.attrib and _lookup(element.attrib, 'use', parsed_attributes) == "required":
         required = True
-    # TODO: use required
+
     if 'fixed' in element.attrib:
         fixed = _lookup(element.attrib, 'fixed', parsed_attributes)
     else:
@@ -310,15 +382,23 @@ def parse_attribute(element: ElementTree.Element, config: Config, parsed_attribu
         raise XmlSchemaException(f"Cannot set default and fixed together")
     # TODO: use default and fixed
 
-    root = StartAttribute(None, False, name)
-    if 'type' in element.attrib:
-        type = _lookup(element.attrib, 'type', parsed_attributes)
-        root.add_transition(Reference(None, type))
-        return root
+    super_root = NoOpDecision(None, False)
+    super_root.add_transition(NoOpLeaf(None, is_valid=not required))
 
-    for i in element:
-        root.add_transition(parse_xml_element(i, config))
-    return root
+    root = StartAttribute(None, False, name)
+    super_root.add_transition(root)
+
+    if 'type' in element.attrib:
+        if len(element) != 0:
+            raise XmlSchemaException(
+                f"Attribute with type cannot have children")
+        type = _lookup(element.attrib, 'type', parsed_attributes)
+        root.add_transition(resolve_type(type, config))
+    else:
+        for i in element:
+            root.add_transition(parse_xml_element(i, config))
+
+    return super_root
 
 
 def parse_type(element: ElementTree.Element, config: Config, parsed_attributes: Set[str]) -> Node:
@@ -340,7 +420,9 @@ def parse_element(element: ElementTree.Element, config: Config, parsed_attribute
     if 'type' in element.attrib:
         type = _lookup(element.attrib, 'type', parsed_attributes)
         root = StartNewElement(None, False, name)
-        root.add_transition(Reference(None, type))
+        root.add_transition(
+            resolve_type(type, config)
+        )
         return root
     else:
         if len(element) != 1:
@@ -373,26 +455,29 @@ def parse_xml_element(element: ElementTree.Element, config: Config) -> Node:
     return node
 
 
-def make_buildin_types(config: Config) -> List[Node]:
-    result: List[Node] = []
-    for name, generator in config.buildin_types.items():
-        root = NoOpDecision(name, False)
-        for value in generator(config):
+def resolve_type(type: str, config: Config) -> Node:
+    if type in config.buildin_types:
+        handler = config.buildin_types[type]
+        root = NoOpDecision(None, False)
+        for value in handler.valid(config):
             value_node = SetValueLeaf(None, True, str(value))
             root.add_transition(value_node)
-        result.append(root)
-    return result
+        for value in handler.invalid(config):
+            value_node = SetValueLeaf(None, False, str(value))
+            root.add_transition(value_node)
+        return root
+    else:
+        # We assume the type is a user defined simple or complex type
+        return Reference(None, type)
 
 
-def parse(schema: ElementTree.ElementTree, config=None) -> Node:
+def parse(schema: ElementTree.Element, config=None) -> Node:
     if config is None:
         config = default_config()
     tag = _get_tag(schema)
     if tag != 'schema':
         raise XmlSchemaException(f"Expected tag 'schema', got '{tag}'")
-
-    # Build-in types
-    buildin_type_nodes = make_buildin_types(config)
+    target_namespace = schema.get('targetNamespace', None)
 
     # The actual schemas
     element_nodes: List[Node] = []
@@ -404,10 +489,13 @@ def parse(schema: ElementTree.ElementTree, config=None) -> Node:
         else:
             other_nodes.append(node)
 
+    if len(element_nodes) == 0:
+        raise XmlSchemaException("No root element found")
     root = element_nodes.pop(0)
-    root = root.resolve(buildin_type_nodes + element_nodes + other_nodes)
+    root = root.resolve(element_nodes + other_nodes)
+    root.optimize()
 
     super_root = StartNode(None, True)
     super_root.add_transition(root)
-    super_root.add_transition(FetchOutput())
+    super_root.add_transition(FetchOutput(target_namespace))
     return super_root

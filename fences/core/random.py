@@ -26,7 +26,7 @@ def generate_random_string(properties: StringProperties) -> str:
             if i.is_valid:
                 result = graph.execute(i.path)
                 break
-        if result is None:
+        if result is None: # pragma: no cover
             raise InternalException(
                 f"Failed to generate string for '{properties.pattern}'")
         if properties.max_length is not None and len(result) > properties.max_length:
