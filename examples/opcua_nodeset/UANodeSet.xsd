@@ -29,7 +29,9 @@
 -->
 
 <xs:schema
+    targetNamespace="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
     elementFormDefault="qualified"
+    xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
 >
   <xs:annotation>

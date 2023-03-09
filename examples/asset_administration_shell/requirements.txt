@@ -1,0 +1,1 @@
+git+https://github.com/eclipse-basyx/basyx-python-sdk.git@improve/V30RC02

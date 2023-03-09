@@ -134,14 +134,6 @@ class TestGenerate(unittest.TestCase):
         }
         self.check(schema)
 
-    def test_aas(self):
-        with open(os.path.join(SCRIPT_DIR, 'fixtures', 'aas.yaml')) as f:
-            schema = yaml.safe_load(f)
-        # TODO: json schema - stack overflow
-        graph = parse.parse(schema)
-        for result in graph.generate_paths():
-            graph.execute(result.path)
-
     def test_not_1(self):
         schema = {
             "not": {

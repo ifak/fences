@@ -6,9 +6,6 @@ from fences.core.debug import check_consistency
 from fences.core.render import render
 
 from xml.dom import minidom
-import os
-
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 class GenerateTest(TestCase):
@@ -38,6 +35,7 @@ class GenerateTest(TestCase):
             if debug:
                 print("Valid:") if i.is_valid else print("Invalid:")
                 self.dump(sample)
+            sample = ElementTree.fromstring( ElementTree.tostring( sample.getroot() ) )
             if i.is_valid:
                 validator.validate(sample)
             else:
@@ -198,8 +196,3 @@ class GenerateTest(TestCase):
                     </xs:complexContent>
                 </xs:complexType>"""
         self.check(schema)
-
-    def test_ua_nodeset(self):
-        with open(os.path.join(SCRIPT_DIR, 'fixtures', 'UANodeSet.xsd')) as file:
-            schema = file.read()
-        self.check(schema, wrap=False)
