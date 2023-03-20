@@ -24,3 +24,8 @@ class InternalException(FencesException):
     This hopefully never happens.
     """
     pass
+
+class ConfigException(FencesException):
+    """
+    All config related exceptions
+    """

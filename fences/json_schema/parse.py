@@ -98,11 +98,13 @@ def default_config():
     return Config(
         key_handlers=[
             KeyHandler('allOf', parse_all_of),
+            KeyHandler('oneOf', parse_one_of),
             KeyHandler('$ref', parse_reference),
             KeyHandler('enum', parse_enum),
             KeyHandler('type', parse_type),
             KeyHandler('properties', parse_object),
             KeyHandler('not', parse_not),
+            KeyHandler('const', parse_const),
         ],
         type_handlers={
             'object': parse_object,
@@ -139,51 +141,63 @@ def default_config():
     )
 
 
-def _read_typesafe(data: dict, key: str, unparsed_keys: Set[str], type, typename, default: any):
+def _read_typesafe(data: dict, key: str, unparsed_keys: Set[str], type, typename, pointer: JsonPointer, default: any):
     if key not in data:
         if default is None:
-            raise JsonSchemaException(f"'{key}' is missing", None)
+            raise JsonSchemaException(f"'{key}' is missing at {pointer}", None)
         else:
             return default
     value = data[key]
     if not isinstance(value, type):
-        raise JsonSchemaException(f"{value} is not a {typename}", None)
+        raise JsonSchemaException(f"{value} is not a {typename} at {pointer}", None)
     unparsed_keys.remove(key)
     return value
 
 
-def _read_int(data: dict, key: str, unparsed_keys: Set[str], default=None) -> str:
-    return _read_typesafe(data, key, unparsed_keys, int, 'int', default)
+def _read_int(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=None) -> str:
+    return _read_typesafe(data, key, unparsed_keys, int, 'int', pointer, default)
 
 
-def _read_string(data: dict, key: str, unparsed_keys: Set[str], default=None) -> str:
-    return _read_typesafe(data, key, unparsed_keys, str, 'string', default)
+def _read_string(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=None) -> str:
+    return _read_typesafe(data, key, unparsed_keys, str, 'string', pointer, default)
 
 
-def _read_dict(data: dict, key: str, unparsed_keys: Set[str], default=None) -> dict:
-    return _read_typesafe(data, key, unparsed_keys, dict, 'dict', default)
+def _read_dict(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=None) -> dict:
+    return _read_typesafe(data, key, unparsed_keys, dict, 'dict', pointer, default)
 
 
-def _read_list(data: dict, key: str, unparsed_keys: Set[str], default=None) -> list:
-    return _read_typesafe(data, key, unparsed_keys, list, 'list', default)
+def _read_list(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=None) -> list:
+    return _read_typesafe(data, key, unparsed_keys, list, 'list', pointer, default)
 
+def parse_const(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
+    value = data['const']
+    unparsed_keys.remove('const')
+    return SetValueLeaf(path, True, value)
 
-def parse_all_of(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
+def _parse_aggregation(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer, key: str,  all_transitions: bool) -> Node:
     root = NoOpDecision(str(path))
-    root.all_transitions = True
-    items = _read_list(data, 'allOf', unparsed_keys)
+    root.all_transitions = all_transitions
+    items = _read_list(data, key, unparsed_keys, path)
     # TODO: although 'type' does not make sense here, we need to skip it since many schemas use it
-    _read_string(data, 'type', unparsed_keys, '')
+    _read_string(data, 'type', unparsed_keys, path, '')
     for idx, item in enumerate(items):
         target = parse_dict(item, config, path + 'allOf' + idx)
         root.add_transition(target)
     return root
 
 
+def parse_one_of(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
+    return _parse_aggregation(data, config, unparsed_keys, path, 'oneOf', False);
+
+
+def parse_all_of(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
+    return _parse_aggregation(data, config, unparsed_keys, path, 'allOf', True);
+
+
 def parse_enum(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     # TODO: use type for something?
-    _read_string(data, 'type', unparsed_keys)
-    values = _read_list(data, 'enum', unparsed_keys)
+    _read_string(data, 'type', unparsed_keys, path, '')
+    values = _read_list(data, 'enum', unparsed_keys, path)
     root = NoOpDecision(str(path))
     max_length = 0
     for value in values:
@@ -194,22 +208,22 @@ def parse_enum(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPo
     return root
 
 def parse_not(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    d = _read_dict(data, 'not', unparsed_keys)
+    d = _read_dict(data, 'not', unparsed_keys, path)
     subroot = parse_dict(d, config, path + 'not')
     root = NoOpDecision(str(path), False)
     root.add_transition(subroot, True)
     return root
 
 def parse_reference(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    ref = _read_string(data, '$ref', unparsed_keys)
+    ref = _read_string(data, '$ref', unparsed_keys, path)
     return Reference(str(path + '$ref'), ref)
 
 
 def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    props = _read_dict(data, 'properties', unparsed_keys)
+    props = _read_dict(data, 'properties', unparsed_keys, path, {})
 
     required: Set[str] = set()
-    for idx, token in enumerate(_read_list(data, 'required', unparsed_keys, [])):
+    for idx, token in enumerate(_read_list(data, 'required', unparsed_keys, path, [])):
         sub_path = path + 'required' + idx
         if not isinstance(token, str):
             raise JsonSchemaException(f"'{token}' is not a string at ${sub_path}", sub_path)
@@ -241,16 +255,16 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
 
 def parse_string(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     root = NoOpDecision(str(path))
-    pattern = _read_string(data, 'pattern', unparsed_keys, '')
+    pattern = _read_string(data, 'pattern', unparsed_keys, path, '')
     if pattern:
         regex = pattern
     else:
         regex = None
     # TODO: use format
-    format = _read_string(data, 'format', unparsed_keys, '')
+    format = _read_string(data, 'format', unparsed_keys, path, '')
     properties = StringProperties(
-        min_length=_read_int(data, 'minLength', unparsed_keys, 0),
-        max_length=_read_int(data, 'maxLength', unparsed_keys, float("inf")),
+        min_length=_read_int(data, 'minLength', unparsed_keys, path, 0),
+        max_length=_read_int(data, 'maxLength', unparsed_keys, path, float("inf")),
         pattern=regex,
     )
     for generator in config.string_generators.valid:
@@ -264,8 +278,8 @@ def parse_string(data: dict, config: Config, unparsed_keys: Set[str], path: Json
 
 def parse_array(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     # TODO: use min items
-    min_items = _read_int(data, 'minItems', unparsed_keys, 0)
-    items = _read_dict(data, 'items', unparsed_keys)
+    min_items = _read_int(data, 'minItems', unparsed_keys, path, 0)
+    items = _read_dict(data, 'items', unparsed_keys, path)
     items_path = path + 'items'
     root_node = NoOpDecision(str(path))
 
@@ -293,7 +307,7 @@ def parse_boolean(data: dict, config: Config, unparsed_keys: Set[str], path: Jso
 
 
 def parse_type(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    type = _read_string(data, 'type', unparsed_keys)
+    type = _read_string(data, 'type', unparsed_keys, path)
     if type not in config.type_handlers:
         raise JsonSchemaException(f"Invalid type '{type}' at {path}", path)
     return config.type_handlers[type](data, config, unparsed_keys, path)
@@ -301,7 +315,7 @@ def parse_type(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPo
 
 def parse_dict(data: dict, config: Config, path: JsonPointer):
     if not isinstance(data, dict):
-        raise JsonSchemaException(f"Expected dict, got {type(data)}", path)
+        raise JsonSchemaException(f"Expected dict, got {(data)} at {path}", path)
     unparsed_keys = set(data.keys())
     for handler in config.key_handlers:
         if handler.key in data:
@@ -319,16 +333,17 @@ def parse(data: dict, config=None) -> Node:
     if not isinstance(data, dict):
         raise JsonSchemaException(f"Expected dict, got {type(data)}", path)
 
+    path = JsonPointer()
+
     # Skip meta data
     unparsed_keys = set(data.keys())
-    _read_string(data, '$schema', unparsed_keys, '')
-    _read_string(data, 'title', unparsed_keys, '')
-    _read_string(data, '$id', unparsed_keys, '')
+    _read_string(data, '$schema', unparsed_keys, path, '')
+    _read_string(data, 'title', unparsed_keys, path, '')
+    _read_string(data, '$id', unparsed_keys, path, '')
 
     # Read definitions
-    path = JsonPointer()
     all_nodes: List[Node] = []
-    definitions = _read_dict(data, 'definitions', unparsed_keys, {})
+    definitions = _read_dict(data, 'definitions', unparsed_keys, path, {})
     for key, definition in definitions.items():
         sub_path = path + 'definitions' + key
         node = parse_dict(definition, config, sub_path)

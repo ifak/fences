@@ -63,7 +63,7 @@ class Node:
 
         def insert(node: Node):
             if node.id and node.id in nodes_by_id:
-                raise ResolveReferenceException(f"id '{node.id}' already exists", node.id)
+                raise ResolveReferenceException(f"id '{node.id}' exists multiple times", node.id)
             nodes_by_id[node.id] = node
         for node in nodes:
             for n in node.items():
@@ -239,6 +239,16 @@ class Node:
         This helps to speed up subsequent operations.
         """
         pass
+
+    def get_by_id(self, id: str) -> "Node":
+        """
+        Gets a specific node in the graph by it's id.
+        Raises a KeyError if the id does not exist.
+        """
+        for i in self.items():
+            if i.id == id:
+                return i
+        raise KeyError("No such id '{id}'")
 
 class Leaf(Node):
     def __init__(self, id: str, is_valid: bool) -> None:

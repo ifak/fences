@@ -169,3 +169,13 @@ class TestGenerate(unittest.TestCase):
             graph.execute(i.path)
         # TODO: currently fails
         # self.check(schema)
+
+    def test_const(self):
+        schema = {
+            "properties": {
+                "country": {
+                    "const": "United States of America"
+                }
+            }
+        }
+        self.check(schema)
