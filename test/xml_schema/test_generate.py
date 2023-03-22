@@ -6,6 +6,9 @@ from fences.core.debug import check_consistency
 from fences.core.render import render
 
 from xml.dom import minidom
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 class GenerateTest(TestCase):
@@ -35,7 +38,8 @@ class GenerateTest(TestCase):
             if debug:
                 print("Valid:") if i.is_valid else print("Invalid:")
                 self.dump(sample)
-            sample = ElementTree.fromstring( ElementTree.tostring( sample.getroot() ) )
+            sample = ElementTree.fromstring(
+                ElementTree.tostring(sample.getroot()))
             if i.is_valid:
                 validator.validate(sample)
             else:
@@ -177,22 +181,37 @@ class GenerateTest(TestCase):
     def test_extension_complex(self):
         schema = """
             <xs:element name="employee" type="fullpersoninfo"/>
-                <xs:complexType name="personinfo">
-                    <xs:sequence>
-                        <xs:element name="firstname" type="xs:string"/>
-                        <xs:element name="lastname" type="xs:string"/>
-                    </xs:sequence>
-                </xs:complexType>
+            <xs:complexType name="personinfo">
+                <xs:sequence>
+                    <xs:element name="firstname" type="xs:string"/>
+                    <xs:element name="lastname" type="xs:string"/>
+                </xs:sequence>
+            </xs:complexType>
 
-                <xs:complexType name="fullpersoninfo">
-                    <xs:complexContent>
-                        <xs:extension base="personinfo">
-                            <xs:sequence>
-                                <xs:element name="address" type="xs:string"/>
-                                <xs:element name="city" type="xs:string"/>
-                                <xs:element name="country" type="xs:string"/>
-                            </xs:sequence>
-                        </xs:extension>
-                    </xs:complexContent>
-                </xs:complexType>"""
+            <xs:complexType name="fullpersoninfo">
+                <xs:complexContent>
+                    <xs:extension base="personinfo">
+                        <xs:sequence>
+                            <xs:element name="address" type="xs:string"/>
+                            <xs:element name="city" type="xs:string"/>
+                            <xs:element name="country" type="xs:string"/>
+                        </xs:sequence>
+                    </xs:extension>
+                </xs:complexContent>
+            </xs:complexType>
+            """
         self.check(schema)
+
+    def test_fixed_value(self):
+        schema = """
+            <xs:element name="test">
+                <xs:complexType>
+                    <xs:attribute name="foo" type="xs:string" fixed="bar"/>
+                </xs:complexType>
+            </xs:element>"""
+        self.check(schema)
+
+    def test_opcua(self):
+        with open(os.path.join(SCRIPT_DIR, '..', '..', 'examples', 'opcua_nodeset', 'UANodeSet.xsd')) as file:
+            schema = file.read()
+        self.check(schema, wrap=False)

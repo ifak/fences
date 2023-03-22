@@ -44,19 +44,21 @@
     <xs:complexType>
       <xs:sequence>
         <xs:element name="NamespaceUris" type="UriTable" minOccurs="0" />
-<!--        <xs:element name="ServerUris" type="UriTable" minOccurs="0" /> -->
-<!--        <xs:element name="Models" type="ModelTable" minOccurs="0" /> -->
-<!--        <xs:element name="Aliases" type="AliasTable" minOccurs="0" /> -->
-<!--        <xs:element name="Extensions" type="ListOfExtensions" minOccurs="0" /> -->
+<!--
+        <xs:element name="ServerUris" type="UriTable" minOccurs="0" />
+        <xs:element name="Models" type="ModelTable" minOccurs="0" />
+-->
+        <xs:element name="Aliases" type="AliasTable" minOccurs="0" />
+        <xs:element name="Extensions" type="ListOfExtensions" minOccurs="0" />
         <xs:choice minOccurs="0" maxOccurs="unbounded">
           <xs:element name="UAObject" type="UAObject" />
-<!--          <xs:element name="UAVariable" type="UAVariable" /> -->
-<!--          <xs:element name="UAMethod" type="UAMethod" /> -->
-<!--          <xs:element name="UAView" type="UAView" /> -->
-<!--          <xs:element name="UAObjectType" type="UAObjectType" /> -->
-<!--          <xs:element name="UAVariableType" type="UAVariableType" /> -->
-<!--          <xs:element name="UADataType" type="UADataType" /> -->
-<!--          <xs:element name="UAReferenceType" type="UAReferenceType" /> -->
+          <xs:element name="UAVariable" type="UAVariable" />
+          <xs:element name="UAMethod" type="UAMethod" />
+          <xs:element name="UAView" type="UAView" />
+          <xs:element name="UAObjectType" type="UAObjectType" />
+          <xs:element name="UAVariableType" type="UAVariableType" />
+          <xs:element name="UADataType" type="UADataType" />
+          <xs:element name="UAReferenceType" type="UAReferenceType" />
         </xs:choice>
       </xs:sequence>
       <xs:attribute name="LastModified" type="xs:dateTime" />
@@ -236,7 +238,7 @@
 
   <xs:simpleType name="ArrayDimensions">
 	<xs:restriction base="xs:token">
-	  <xs:pattern value="(([0-9]+,)*[0-9]+)?" />
+	  <xs:pattern value="([0-9]+,)*[0-9]+" />
 	</xs:restriction>
   </xs:simpleType>
 
@@ -304,15 +306,17 @@
   </xs:simpleType>
 
   <xs:complexType name="UANode">
-<!--    <xs:sequence>
+    <xs:sequence>
       <xs:element name="DisplayName" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
       <xs:element name="Description" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
       <xs:element name="Category" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
       <xs:element name="Documentation" type="xs:string" minOccurs="0" />
-      <xs:element name="References" type="ListOfReferences" minOccurs="0" />
+<!--
+      <xs:element name="References" type="ListOfReferences" minOccurs="1" />
+-->
       <xs:element name="RolePermissions" type="ListOfRolePermissions" minOccurs="0" />
       <xs:element name="Extensions" type="ListOfExtensions" minOccurs="0" />
-    </xs:sequence> -->
+    </xs:sequence>
     <xs:attribute name="NodeId" type="NodeId" use="required" />
     <xs:attribute name="BrowseName" type="QualifiedName" use="required" />
     <xs:attribute name="WriteMask" type="WriteMask" default="0" />
@@ -326,7 +330,9 @@
   <xs:complexType name="UAInstance">
     <xs:complexContent>
       <xs:extension base="UANode">
-<!--        <xs:attribute name="ParentNodeId" type="NodeId" /> -->
+<!--
+        <xs:attribute name="ParentNodeId" type="NodeId" use="required"/>
+-->
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -354,7 +360,7 @@
         </xs:sequence>
         <xs:attribute name="DataType" type="NodeId" default="i=24" />
         <xs:attribute name="ValueRank" type="ValueRank" default="-1" />
-        <xs:attribute name="ArrayDimensions" type="ArrayDimensions" default="" />
+        <xs:attribute name="ArrayDimensions" type="ArrayDimensions" />
         <xs:attribute name="AccessLevel" type="AccessLevel" default="1" />
         <xs:attribute name="UserAccessLevel" type="AccessLevel" default="1" />
         <xs:attribute name="MinimumSamplingInterval" type="Duration" default="0" />
@@ -434,7 +440,7 @@
         </xs:sequence>
         <xs:attribute name="DataType" type="NodeId" default="i=24" />
         <xs:attribute name="ValueRank" type="ValueRank" default="-1" />
-        <xs:attribute name="ArrayDimensions" type="ArrayDimensions" default="" />
+        <xs:attribute name="ArrayDimensions" type="ArrayDimensions"/>
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -480,7 +486,7 @@
     <xs:attribute name="SymbolicName" type="SymbolicName" />
     <xs:attribute name="DataType" type="NodeId" default="i=24" />
     <xs:attribute name="ValueRank" type="ValueRank" default="-1" />
-    <xs:attribute name="ArrayDimensions" type="ArrayDimensions" default="" />
+    <xs:attribute name="ArrayDimensions" type="ArrayDimensions" />
     <xs:attribute name="MaxStringLength" type="xs:unsignedInt" default="0" />
     <xs:attribute name="Value" type="xs:int" default="-1" />
     <xs:attribute name="IsOptional" type="xs:boolean" default="false" />

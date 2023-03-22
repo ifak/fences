@@ -1,15 +1,13 @@
 #! /usr/bin/env python3
 
 from fences import parse_xml_schema
-from fences.core.node import Leaf
-from fences.core.render import render
+from fences.core.util import ConfusionMatrix
 
 from asyncua import Server
 
 import asyncio
 import os
 import traceback
-import sys
 
 from xml.etree import ElementTree
 from xml.dom import minidom
@@ -22,42 +20,45 @@ def dump(e: ElementTree.ElementTree):
     print(minidom.parseString(s).toprettyxml(indent="   "))
 
 
-def addParentNode(element: ElementTree.Element):
-    dummy = ElementTree.Element('UAObject')
-    dummy.set('NodeId', "ns=1;i=1")
-    dummy.set('BrowseName', "parent_node")
-    refs = ElementTree.Element('References')
-    dummy.append(refs)
-    ref = ElementTree.Element('Reference')
-    ref.set('ReferenceType', 'Organizes')
-    ref.set('IsForward', 'false')
-    ref.text = 'i=85'
-    refs.append(ref)
-    element.insert(0, dummy)
+def get_tag(el: ElementTree.Element) -> str:
+    _, _, tag_wo_namespace = el.tag.rpartition('}')
+    return tag_wo_namespace
 
 
-last_idx = 1
+def markAsValidChildNode(tree: ElementTree.ElementTree):
+
+    for node in tree.getroot():
+        tag = get_tag(node)
+        if tag in [
+            'UAObject',
+            'UAVariable',
+            'UAMethod',
+            'UAView',
+            'UAObjectType',
+            'UAVariableType',
+            'UADataType',
+            'UAReferenceType',
+        ]:
+            refs = ElementTree.Element('References')
+            ref = ElementTree.Element('Reference')
+            ref.set('ReferenceType', 'HasComponent')
+            ref.set('IsForward', 'false')
+            ref.text = 'i=1'
+            refs.append(ref)
+            node.append(refs)
 
 
-def make_nodeid(element, path):
-    global last_idx
-    if element.get('name', '') == 'ParentNodeId':
-        yield "ns=1;i=1"
-    else:
-        last_idx += 1
-        yield f"ns=1;i={last_idx}"
+class NodeIdGenerator:
+
+    def __init__(self) -> None:
+        self.last_node_id = 1000
+
+    def __call__(self, element, path):
+        self.last_node_id += 1
+        yield f"i={self.last_node_id}"
 
 
 async def main():
-
-    # with open('/home/bot/Projects/Promotion/fences/sample_nodeset.xml') as file:
-    #     schema = file.read()
-    # et = ElementTree.fromstring(schema)
-    # server = Server()
-    # sample = ElementTree.tostring(et)
-    # await server.init()
-    # await server.import_xml(xmlstring=sample)
-    # return
 
     with open(os.path.join(SCRIPT_DIR, 'UANodeSet.xsd')) as file:
         schema = file.read()
@@ -65,47 +66,44 @@ async def main():
     graph = parse_xml_schema(et, config={
         'type_generators': {
             'NodeId': {
-                'valid': make_nodeid
+                'valid': NodeIdGenerator()
             },
         }
     })
-    # schema_root = graph.get_by_id('/schema[0]/element[0]')
-    # schema_root.add_transition(InsertDummyNode())
-    render(graph).write_svg('graph.svg')
-    valid_accepted = 0
-    valid_rejected = 0
-    invalid_accepted = 0
-    invalid_rejected = 0
+    confusion_mat = ConfusionMatrix()
     for idx, i in enumerate(graph.generate_paths()):
         print("############# {}".format(idx))
+
+        # Generate sample
+        sample = graph.execute(i.path)
+        markAsValidChildNode(sample)
+        dump(sample)
+
+        # Create new server instance
         server = Server()
         await server.init()
-        s = graph.execute(i.path)
-        addParentNode(s.getroot())
-        sample = ElementTree.tostring(s.getroot())
+
+        # Invoke
         try:
-            await server.import_xml(xmlstring=sample)
+            await server.import_xml(xmlstring=ElementTree.tostring(sample.getroot()))
             if i.is_valid:
-                dump(s)
                 print("Valid and accepted")
-                valid_accepted += 1
+                confusion_mat.valid_accepted += 1
             else:
                 print("!!! Invalid BUT accepted!")
-                invalid_accepted += 1
+                confusion_mat.invalid_accepted += 1
         except Exception as e:
             if i.is_valid:
-                dump(s)
                 print(traceback.format_exc())
                 print("!!! valid BUT rejected!")
-                valid_rejected += 1
+                confusion_mat.valid_rejected += 1
             else:
                 print("Invalid and rejected")
-                invalid_rejected += 1
+                confusion_mat.invalid_rejected += 1
 
-    print(f"         | Accepted   | Rejected")
-    print(f"--------------------------------------")
-    print(f"Valid    | {valid_accepted:10} | {valid_rejected:10}")
-    print(f"Invalid  | {invalid_accepted:10} | {invalid_rejected:10}")
+        print()
+
+    confusion_mat.print()
 
 if __name__ == "__main__":
     asyncio.run(main())

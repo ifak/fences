@@ -57,7 +57,7 @@ def default_config() -> Config:
                 invalid=lambda *_: ["-10", "bar"]
             ),
             'xs:unsignedByte': TypeGenerator(
-                valid=lambda *_: [generate_random_number(min_value=0)],
+                valid=lambda *_: [generate_random_number(min_value=0, max_value=255)],
                 invalid=lambda *_: ["-10", "bar"]
             ),
             'xs:int': TypeGenerator(
@@ -278,9 +278,9 @@ def parse_extension(element: ElementTree.Element, config: Config, parsed_attribu
     return root
 
 
-def _parse_occurs(element: ElementTree.Element, path: NormalizedXPath):
+def _parse_occurs(element: ElementTree.Element, path: NormalizedXPath, parsed_attributes: Set[str]):
     if 'minOccurs' in element.attrib:
-        s = element.attrib['minOccurs']
+        s = _lookup(element.attrib, 'minOccurs', parsed_attributes)
         try:
             min_occurs = int(s)
         except ValueError as e:
@@ -290,7 +290,7 @@ def _parse_occurs(element: ElementTree.Element, path: NormalizedXPath):
         min_occurs = 1
 
     if 'maxOccurs' in element.attrib:
-        s = element.attrib['maxOccurs']
+        s = _lookup(element.attrib, 'maxOccurs', parsed_attributes)
         if s == 'unbounded':
             max_occurs = None
         else:
@@ -348,11 +348,7 @@ def parse_sequence(element: ElementTree.Element, config: Config, parsed_attribut
         name = None
     root = NoOpDecision(str(path), True)
     for subpath, i in path.enumerate(element):
-        min_occurs, max_occurs = _parse_occurs(i, subpath)
-        child_node = parse_xml_element(i, config, subpath)
-        root.add_transition(
-            _repeat(child_node, min_occurs, max_occurs)
-        )
+        root.add_transition(parse_xml_element(i, config, subpath))
     return root
 
 
@@ -363,11 +359,7 @@ def parse_choice(element: ElementTree.Element, config: Config, parsed_attributes
         name = None
     root = NoOpDecision(str(path), False)
     for subpath, i in path.enumerate(element):
-        min_occurs, max_occurs = _parse_occurs(i, subpath)
-        child_node = parse_xml_element(i, config, subpath)
-        root.add_transition(
-            _repeat(child_node, min_occurs, max_occurs)
-        )
+        root.add_transition(parse_xml_element(i, config, subpath))
     return root
 
 
@@ -376,22 +368,16 @@ def parse_attribute(element: ElementTree.Element, config: Config, parsed_attribu
         raise XmlSchemaException("references currently not supported", path)
 
     name = _lookup(element.attrib, 'name', parsed_attributes)
-    required = False
+    required = False  # Attributes are optional by default
     if 'use' in element.attrib and _lookup(element.attrib, 'use', parsed_attributes) == "required":
         required = True
+    # TODO: can we combine required with fixed?
 
-    if 'fixed' in element.attrib:
-        fixed = _lookup(element.attrib, 'fixed', parsed_attributes)
-    else:
-        fixed = None
     if 'default' in element.attrib:
-        default = _lookup(element.attrib, 'default', parsed_attributes)
-    else:
-        default = None
-    if fixed and default:
-        raise XmlSchemaException(
-            f"Cannot set default and fixed together", path)
-    # TODO: use default and fixed
+        if required:
+            raise XmlSchemaException(
+                "Cannot set a default value for a required attribute", path)
+        _lookup(element.attrib, 'default', parsed_attributes)
 
     super_root = NoOpDecision(str(path), False)
     super_root.add_transition(NoOpLeaf(None, is_valid=not required))
@@ -399,15 +385,27 @@ def parse_attribute(element: ElementTree.Element, config: Config, parsed_attribu
     root = StartAttribute(None, False, name)
     super_root.add_transition(root)
 
-    if 'type' in element.attrib:
-        if len(element) != 0:
+    if 'fixed' in element.attrib:
+        if 'type' in element.attrib:
+            # Discard the type
+            _lookup(element.attrib, 'type', parsed_attributes)
+        if 'default' in element.attrib:
             raise XmlSchemaException(
-                f"Attribute with type cannot have children", path)
-        type = _lookup(element.attrib, 'type', parsed_attributes)
-        root.add_transition(resolve_type(type, element, config, path))
+                f"Cannot set default value for fixed attribute", path)
+        fixed_value = _lookup(element.attrib, 'fixed', parsed_attributes)
+        root.add_transition(SetValueLeaf(None, True, fixed_value))
+        root.add_transition(SetValueLeaf(
+            None, False, fixed_value + '_INVALID'))
     else:
-        for subpath, i in path.enumerate(element):
-            root.add_transition(parse_xml_element(i, config, subpath))
+        if 'type' in element.attrib:
+            if len(element) != 0:
+                raise XmlSchemaException(
+                    f"Attribute with type cannot have children", path)
+            type = _lookup(element.attrib, 'type', parsed_attributes)
+            root.add_transition(resolve_type(type, element, config, path))
+        else:
+            for subpath, i in path.enumerate(element):
+                root.add_transition(parse_xml_element(i, config, subpath))
 
     return super_root
 
@@ -458,12 +456,15 @@ def parse_xml_element(element: ElementTree.Element, config: Config, path: Normal
         raise XmlSchemaException(f"Unknown tag '{tag}'", path)
     parsed_attributes = set(element.attrib.keys())
     node = handler(element, config, parsed_attributes, path)
-    # these are handled by the parent element, namely All, Choice or Sequence
-    _remove_if_available(parsed_attributes, 'minOccurs')
-    _remove_if_available(parsed_attributes, 'maxOccurs')
+
+    if 'minOccurs' in element.attrib or 'maxOccurs' in element.attrib:
+        min_occurs, max_occurs = _parse_occurs(element, path, parsed_attributes)
+        node = _repeat(node, min_occurs, max_occurs)
+
     if parsed_attributes:
         raise XmlSchemaException(
             f"Unknown attributes '{parsed_attributes}' in <{tag}>", path)
+
     return node
 
 
@@ -483,7 +484,7 @@ def resolve_type(type: str, element: ElementTree.Element, config: Config, path: 
         return Reference(None, type)
 
 
-def parse(schema: ElementTree.Element, config: Optional[dict]=None) -> Node:
+def parse(schema: ElementTree.Element, config: Optional[dict] = None) -> Node:
     actual_config = default_config()
     if config is not None:
         actual_config.merge(config)
