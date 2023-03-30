@@ -1,0 +1,23 @@
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fences"
+version = "0.0.1"
+description = "Generate samples for various schemas like json schema, xml schema and regex"
+readme = "README.md"
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["xml", "json", "regex", "schema"]
+requires-python = ">=3.6"
+
+[project.urls]
+Homepage = "https://github.com/ifak/fences"
+
+[project.scripts]
+realpython = "reader.__main__:main"
