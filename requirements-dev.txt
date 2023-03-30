@@ -1,5 +1,6 @@
-jsonschema
-xmlschema
-pydot
-build
-lark
+jsonschema>=4.4
+xmlschema>=2.2
+pydot>=1.4
+build>=0.10
+lark>=1.1
+coverage>=6.3
