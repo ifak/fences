@@ -25,14 +25,14 @@ jobs:
       run: ./bin/generate.sh
     - name: Run tests
       run: ./bin/run_tests.sh
-    - name: Build package
-      run: python -m build
     - name: Read version
       run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
     - name: Write version to pyproject.toml
       run: |
         echo "Version: $RELEASE_VERSION"
         sed "s/__VERSION__/$RELEASE_VERSION/g" -i pyproject.toml
+    - name: Build package
+      run: python -m build
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
       with:
