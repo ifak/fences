@@ -4,3 +4,4 @@ pydot>=1.4
 build>=0.10
 lark>=1.1
 coverage>=6.3
+PyYAML>=5.3
