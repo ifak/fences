@@ -201,13 +201,19 @@ class Node:
         Execute a path using execute().
         """
 
-        to_visit: List[Leaf] = []
+        valid_nodes: List[Leaf] = []
+        invalid_nodes: List[Leaf] = []
 
         # Reset counter, collect leafs
         for node in self.items():
             node._num_paths = 0
             if isinstance(node, Leaf):
-                to_visit.append(node)
+                if node.is_valid:
+                    valid_nodes.append(node)
+                else:
+                    invalid_nodes.append(node)
+
+        to_visit = valid_nodes + invalid_nodes
 
         while to_visit:
             next = to_visit[0]

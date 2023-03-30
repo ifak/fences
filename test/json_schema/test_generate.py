@@ -4,17 +4,21 @@ from jsonschema import validate, ValidationError
 import unittest
 import yaml
 import os
+import json
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
 class TestGenerate(unittest.TestCase):
 
-    def check(self, schema):
+    def check(self, schema, debug=False):
         graph = parse.parse(schema)
         check_consistency(graph)
         for i in graph.generate_paths():
             sample = graph.execute(i.path)
+            if debug:
+                print("Valid" if i.is_valid else "Invalid")
+                print(json.dumps(sample, indent=4))
             if i.is_valid:
                 validate(instance=sample, schema=schema)
             else:
@@ -179,3 +183,79 @@ class TestGenerate(unittest.TestCase):
             }
         }
         self.check(schema)
+
+    def test_all_of_objects(self):
+        schema = {
+            "allOf": [
+                { "$ref": "#/definitions/test" },
+                { "$ref": "#/definitions/test2" },
+            ],
+            "definitions": {
+                "test": {
+                    "properties": {
+                        "abc": { "type": "string" }
+                    },
+                    "required": [ "abc" ]
+                },
+                "test2": {
+                    "properties": {
+                        "xyz": { "type": "string" }
+                    },
+                    "required": ['xyz']
+                }
+            }
+        }
+        self.check(schema)
+
+    def test_all_of_arrays(self):
+        schema = {
+            "type": "array",
+            "items": 
+            {
+                "allOf": [
+                    { "$ref": "#/definitions/test" },
+                    { "$ref": "#/definitions/test2" },
+                ]
+            },
+            "definitions": {
+                "test": {
+                    "properties": {
+                        "abc": { "type": "string" }
+                    },
+                    "required": [ "abc" ]
+                },
+                "test2": {
+                    "properties": {
+                        "xyz": { "type": "string" }
+                    },
+                    "required": ['xyz']
+                }
+            }
+        }
+        self.check(schema)
+
+    def test_if(self):
+        schema = {
+            "if": {
+                "properties": {
+                    "a": { "const": "x" }
+                }
+            },
+            "then": {
+                "properties": {
+                    "b": { "const": "y" }
+                }
+            },
+            "else": {
+                "properties": {
+                    "c": { "const": "z" }
+                }
+            }
+        }
+        # self.check(schema)
+
+    def test_aas(self):
+        with open(os.path.join(SCRIPT_DIR, '..', '..', 'examples', 'asset_administration_shell', 'aas.yaml')) as file:
+            schema = yaml.safe_load(file)
+        # TODO: fails because jsonschema crashes
+        # self.check(schema)

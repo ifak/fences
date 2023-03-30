@@ -25,7 +25,7 @@ def get_tag(el: ElementTree.Element) -> str:
     return tag_wo_namespace
 
 
-def markAsValidChildNode(tree: ElementTree.ElementTree):
+def mark_as_valid_child_node(tree: ElementTree.ElementTree):
 
     for node in tree.getroot():
         tag = get_tag(node)
@@ -76,7 +76,7 @@ async def main():
 
         # Generate sample
         sample = graph.execute(i.path)
-        markAsValidChildNode(sample)
+        mark_as_valid_child_node(sample)
         dump(sample)
 
         # Create new server instance

@@ -15,9 +15,11 @@ from dataclasses import dataclass
 class KeyReference:
     ref: Union[dict, list]
     key: Optional[str] = None
+    has_value: bool = False
 
     def set(self, value):
         self.ref[self.key] = value
+        self.has_value = True
 
 
 class SetValueLeaf(Leaf):
@@ -47,7 +49,10 @@ class InsertKeyNode(Decision):
 
 
 class CreateArrayNode(Decision):
-    def apply(self, data: any) -> any:
+    def apply(self, data: KeyReference) -> any:
+        # Needed to handle allOf properly
+        if data.has_value:
+            return data.ref[data.key]
         value = []
         data.set(value)
         return value
@@ -67,6 +72,9 @@ class AppendArrayItemNode(Decision):
 
 class CreateObjectNode(Decision):
     def apply(self, data: KeyReference) -> KeyReference:
+        # Needed to handle allOf properly
+        if data.has_value:
+            return data.ref[data.key]
         value = {}
         data.set(value)
         return value
@@ -97,6 +105,7 @@ class FetchOutputNode(Leaf):
 def default_config():
     return Config(
         key_handlers=[
+            KeyHandler('if', parse_if),
             KeyHandler('allOf', parse_all_of),
             KeyHandler('oneOf', parse_one_of),
             KeyHandler('$ref', parse_reference),
@@ -169,10 +178,53 @@ def _read_dict(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPoint
 def _read_list(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=None) -> list:
     return _read_typesafe(data, key, unparsed_keys, list, 'list', pointer, default)
 
+def parse_if(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
+    if_data = _read_dict(data, 'if', unparsed_keys, path)
+    if_node = parse_dict(if_data, config, path + 'if')
+    then_data = _read_dict(data, 'then', unparsed_keys, path)
+    then_node = parse_dict(then_data, config, path + 'then')
+    if 'else' in data:
+        else_data = _read_dict(data, 'else', unparsed_keys, path)
+        else_node = parse_dict(else_data, config, path + 'else')
+    else:
+        else_node = None
+    root = NoOpDecision(str(path), False)
+
+    # IF: valid, THEN: valid
+    sub_root_0 = NoOpDecision(None, True)
+    sub_root_0.add_transition(if_node)
+    sub_root_0.add_transition(then_node)
+    root.add_transition(sub_root_0)
+
+    # IF: invalid, THEN: invalid
+    sub_root_1 = NoOpDecision(None, True)
+    sub_root_1.add_transition(if_node, True)
+    sub_root_1.add_transition(then_node, True)
+    root.add_transition(sub_root_1)
+
+    if else_node:
+        # IF: valid ELSE: invalid
+        sub_root_2 = NoOpDecision(None, True)
+        sub_root_2.add_transition(if_node)
+        sub_root_2.add_transition(else_node, True)
+        root.add_transition(sub_root_2)
+
+        # IF: invalid ELSE: valid
+        sub_root_3 = NoOpDecision(None, True)
+        sub_root_3.add_transition(if_node, True)
+        sub_root_3.add_transition(else_node)
+        root.add_transition(sub_root_3)
+
+    return root
+
 def parse_const(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     value = data['const']
     unparsed_keys.remove('const')
-    return SetValueLeaf(path, True, value)
+
+    root = NoOpDecision(str(path), False)
+    root.add_transition(SetValueLeaf(None, True, value))
+    root.add_transition(SetValueLeaf(None, False, f"{value}_INvALID"))
+    return root
 
 def _parse_aggregation(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer, key: str,  all_transitions: bool) -> Node:
     root = NoOpDecision(str(path))
@@ -187,18 +239,19 @@ def _parse_aggregation(data: dict, config: Config, unparsed_keys: Set[str], path
 
 
 def parse_one_of(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    return _parse_aggregation(data, config, unparsed_keys, path, 'oneOf', False);
+    return _parse_aggregation(data, config, unparsed_keys, path, 'oneOf', False)
 
 
 def parse_all_of(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    return _parse_aggregation(data, config, unparsed_keys, path, 'allOf', True);
+    # TODO: this works for objects, but not for strings etc.
+    return _parse_aggregation(data, config, unparsed_keys, path, 'allOf', True)
 
 
 def parse_enum(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     # TODO: use type for something?
     _read_string(data, 'type', unparsed_keys, path, '')
     values = _read_list(data, 'enum', unparsed_keys, path)
-    root = NoOpDecision(str(path))
+    root = NoOpDecision(str(path), False)
     max_length = 0
     for value in values:
         root.add_transition(SetValueLeaf(None, True, value))
@@ -216,7 +269,7 @@ def parse_not(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPoi
 
 def parse_reference(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     ref = _read_string(data, '$ref', unparsed_keys, path)
-    return Reference(str(path + '$ref'), ref)
+    return Reference(str(path), ref)
 
 
 def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
@@ -363,7 +416,7 @@ def parse(data: dict, config=None) -> Node:
 
     root = root.resolve(all_nodes)
 
-    root.optimize()
+    # root.optimize()
 
     # prepend input / output nodes
     create_input = CreateInputNode()
