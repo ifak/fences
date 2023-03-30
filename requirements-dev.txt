@@ -2,3 +2,4 @@ jsonschema
 xmlschema
 pydot
 build
+lark
