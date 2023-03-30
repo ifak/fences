@@ -1,4 +1,5 @@
 # Fences
+[![CI](https://github.com/ifak/fences/actions/workflows/check.yml/badge.svg)](https://github.com/ifak/fences/actions/workflows/check.yml)
 
 Fences is a python tool which lets you create test data based on schemas.
 
@@ -9,6 +10,17 @@ If your software is implemented correctly, it must accept all valid samples and 
 
 Unlike other similar tools, fences generate samples systematically instead of randomly.
 This way, the valid / invalid samples systematically cover all boundaries of your input schema (like placing *fences*, hence the name).
+
+## Installation
+
+Use pip to install Fences:
+
+```
+python -m pip install fences
+```
+
+Fences is a self contained library without any external dependencies.
+It uses [Lark](https://github.com/lark-parser/lark) for regex parsing, but in the standalone version where a python file is generated from the grammar beforehand (Mozilla Public License, v. 2.0).
 
 ## Usage
 
@@ -82,3 +94,19 @@ for i in graph.generate_paths():
     print("Valid:" if i.is_valid else "Invalid:")
     print(minidom.parseString(s).toprettyxml(indent="   "))
 ```
+
+## Real-World Examples
+
+Find some real-world examples in the `examples` folder.
+
+## Limitations
+
+General:
+
+Fences does not check if your schema is syntactically correct.
+Fences is designed to be as permissive as possible when parsing a schema but will complain if there is an aspect it does not understand.
+
+For XML:
+
+Python's default XML implementation `xml.etree.ElementTree` has a very poor support for namespaces (https://docs.python.org/3/library/xml.etree.elementtree.html#parsing-xml-with-namespaces).
+This might lead to problems when using the `targetNamespace` attribute in your XML schema.
