@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fences"
-version = "0.0.1"
+version = "__VERSION__"
 description = "Generate samples for various schemas like json schema, xml schema and regex"
 readme = "README.md"
 license = { file = "LICENSE" }
