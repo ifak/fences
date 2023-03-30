@@ -1,5 +1,5 @@
 # Fences
-[![CI](https://github.com/ifak/fences/actions/workflows/check.yml/badge.svg)](https://github.com/ifak/fences/actions/workflows/check.yml)
+[![Tests](https://github.com/ifak/fences/actions/workflows/check.yml/badge.svg)](https://github.com/ifak/fences/actions/workflows/check.yml)
 
 Fences is a python tool which lets you create test data based on schemas.
 
