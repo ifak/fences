@@ -37,6 +37,18 @@ for i in graph.generate_paths():
     print(sample)
 ```
 
+<details>
+<summary>Output</summary>
+
+```
+Valid:
+xy
+Valid:
+xyxyxya
+```
+</details>
+
+
 Generate samples for json schema:
 
 ```python
@@ -59,6 +71,49 @@ for i in graph.generate_paths():
     print("Valid:" if i.is_valid else "Invalid:")
     print(json.dumps(sample, indent=4))
 ```
+
+<details>
+<summary>Output</summary>
+
+```json
+Valid:
+{
+    "foo": "",
+    "bar": true
+}
+
+Valid:
+{}
+
+Valid:
+{
+    "foo": "",
+    "bar": false
+}
+
+Invalid:
+{
+    "foo": null
+}
+
+Invalid:
+{
+    "bar": 42
+}
+
+Invalid:
+{
+    "bar": null
+}
+
+Invalid:
+{
+    "foo": "",
+    "bar": "INVALID"
+}
+```
+</details>
+
 
 Generate samples for XML schema:
 
@@ -94,6 +149,83 @@ for i in graph.generate_paths():
     print("Valid:" if i.is_valid else "Invalid:")
     print(minidom.parseString(s).toprettyxml(indent="   "))
 ```
+
+<details>
+<summary>Output</summary>
+
+```xml
+Valid:
+<?xml version="1.0" ?>
+<class/>
+
+Valid:
+<?xml version="1.0" ?>
+<class>
+   <student>
+      <firstname>foo</firstname>
+      <lastname>foo</lastname>
+      <nickname>foo</nickname>
+      <marks>780</marks>
+   </student>
+</class>
+
+Valid:
+<?xml version="1.0" ?>
+<class>
+   <student rollno="533">
+      <firstname>x</firstname>
+      <lastname>x</lastname>
+      <nickname>x</nickname>
+      <marks>780</marks>
+   </student>
+</class>
+
+Invalid:
+<?xml version="1.0" ?>
+<class>
+   <student>
+      <firstname>foo</firstname>
+      <lastname>foo</lastname>
+      <nickname>foo</nickname>
+      <marks>-10</marks>
+   </student>
+</class>
+
+Invalid:
+<?xml version="1.0" ?>
+<class>
+   <student rollno="533">
+      <firstname>x</firstname>
+      <lastname>x</lastname>
+      <nickname>x</nickname>
+      <marks>foo</marks>
+   </student>
+</class>
+
+Invalid:
+<?xml version="1.0" ?>
+<class>
+   <student rollno="-10">
+      <firstname>foo</firstname>
+      <lastname>foo</lastname>
+      <nickname>foo</nickname>
+      <marks>780</marks>
+   </student>
+</class>
+
+Invalid:
+<?xml version="1.0" ?>
+<class>
+   <student rollno="foo">
+      <firstname>x</firstname>
+      <lastname>x</lastname>
+      <nickname>x</nickname>
+      <marks>780</marks>
+   </student>
+</class>
+```
+
+</details>
 
 ## Real-World Examples
 
