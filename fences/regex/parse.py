@@ -40,6 +40,26 @@ class FetchOutputNode(Leaf):
         return "Fetch output"
 
 
+class AppendCharsLeaf(Leaf):
+
+    def __init__(self, id: str, is_valid: bool, char: str) -> None:
+        super().__init__(id, is_valid)
+        self.char = char
+
+    def apply(self, data: list) -> any:
+        data.append(self.char)
+        return data
+
+    def mask(self, s: str) -> str:
+        allowed = string.ascii_letters + string.digits
+        return "".join([
+            (i if i in allowed else f"chr({ord(i)})") for i in s
+        ])
+
+    def description(self) -> str:
+        return f"Append {self.mask(self.char)}"
+
+
 def _parse_repetition(tree: Tree[Token]) -> "MatchConverter.Repetition":
     assert len(tree.children) in [1, 2]
     repetition_type = tree.children[0]
@@ -102,26 +122,6 @@ def _repeat(root: Decision, item: Node, rep: Repetition):
         _add_repetition(root, item, rep.min)
     if rep.max != rep.min:
         _add_repetition(root, item, rep.max)
-
-
-class AppendCharsLeaf(Leaf):
-
-    def __init__(self, id: str, is_valid: bool, char: str) -> None:
-        super().__init__(id, is_valid)
-        self.char = char
-
-    def apply(self, data: list) -> any:
-        data.append(self.char)
-        return data
-
-    def mask(self, s: str) -> str:
-        allowed = string.ascii_letters + string.digits
-        return "".join([
-            (i if i in allowed else f"chr({ord(i)})") for i in s
-        ])
-
-    def description(self) -> str:
-        return f"Append {self.mask(self.char)}"
 
 
 class TreeConverter:
@@ -336,6 +336,7 @@ def unescape(s: str) -> str:
     for i in ['\\', '{', '}', '.', '(', ')', '[', ']']:
         s = s.replace('\\' + i, i)
     return s
+
 
 def parse(regex: str) -> Node:
     regex = unescape(regex)
