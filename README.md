@@ -29,7 +29,7 @@ Generate samples for regular expressions:
 ```python
 from fences import parse_regex
 
-graph = parse_regex("a+(c+)b{3,7}")
+graph = parse_regex("a?(c+)b{3,7}")
 
 for i in graph.generate_paths():
     sample = graph.execute(i.path)
@@ -42,9 +42,9 @@ for i in graph.generate_paths():
 
 ```
 Valid:
-xy
+cbbb
 Valid:
-xyxyxya
+acccbbbbbbb
 ```
 </details>
 
