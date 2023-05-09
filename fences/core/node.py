@@ -17,7 +17,6 @@ class Node:
     def __init__(self, id: Optional[str] = None) -> None:
         self.id = id
         self.incoming_transitions: List["IncomingTransition"] = []
-        self._num_paths: int = 0
 
     def apply(self, data: any) -> any:
         """
@@ -125,7 +124,6 @@ class Node:
 
     def _generate(self, result_path: Path, already_reached: Set, on_valid_path: bool):
         already_reached.add(id(self))
-        self._num_paths += 1
 
         if isinstance(self, Leaf) and self.is_valid != on_valid_path:
             v = 'valid' if on_valid_path else 'invalid'
@@ -139,29 +137,31 @@ class Node:
         if self.all_transitions:
             for transition in self.outgoing_transitions:
                 v = not on_valid_path if transition.is_inverting else on_valid_path
+                transition._num_paths += 1
                 transition.target._generate(result_path, already_reached, v)
         else:
             selected = None
             min_paths = float('inf')
             for idx, transition in enumerate(self.outgoing_transitions):
                 target = transition.target
-                if target._num_paths < min_paths:
+                if transition._num_paths < min_paths:
                     if isinstance(target, Leaf):
                         v = not on_valid_path if transition.is_inverting else on_valid_path
                         if target.is_valid != v: continue
                     selected = idx
-                    min_paths = target._num_paths
+                    min_paths = transition._num_paths
             if selected is None:
                 v = 'valid' if on_valid_path else 'invalid'
                 raise InternalException(f"Decision without {v} leaf detected!")
 
             result_path.append(selected)
-            v = not on_valid_path if self.outgoing_transitions[selected].is_inverting else on_valid_path
-            self.outgoing_transitions[selected].target._generate(result_path, already_reached, v)
+            transition = self.outgoing_transitions[selected]
+            transition._num_paths += 1
+            v = not on_valid_path if transition.is_inverting else on_valid_path
+            transition.target._generate(result_path, already_reached, v)
 
     def _backward(self, path: Path, already_reached: Set) -> Tuple[bool, "Node"]:
         already_reached.add(id(self))
-        self._num_paths += 1
 
         if not self.incoming_transitions:
             return False, self
@@ -169,10 +169,12 @@ class Node:
         predecessor_transition = None
         min_paths = float('inf')
         for transition in self.incoming_transitions:
-            if transition.source._num_paths < min_paths:
-                min_paths = transition.source._num_paths
+            n = transition.outgoing_transition()._num_paths
+            if n < min_paths:
+                min_paths = n
                 predecessor_transition = transition
         path.append(predecessor_transition.outgoing_idx)
+        predecessor_transition.outgoing_transition()._num_paths += 1
         is_inverting, root = predecessor_transition.source._backward(path, already_reached)
         if predecessor_transition.outgoing_transition().is_inverting:
             return not is_inverting, root
@@ -189,11 +191,14 @@ class Node:
                 if idx == path_idx:
                     transition.target._forward(backward_path, forward_path, visited, v)
                 else:
+                    transition._num_paths += 1
                     transition.target._generate(forward_path, visited, v)
         else:
-            v = not on_valid_path if self.outgoing_transitions[path_idx].is_inverting else on_valid_path
+            transition = self.outgoing_transitions[path_idx]
+            v = not on_valid_path if transition.is_inverting else on_valid_path
             forward_path.append(path_idx)
-            self.outgoing_transitions[path_idx].target._forward(backward_path, forward_path, visited, v)
+            transition._num_paths += 1
+            transition.target._forward(backward_path, forward_path, visited, v)
 
     def generate_paths(self) -> Generator[ResultEntry, None, None]:
         """
@@ -206,12 +211,14 @@ class Node:
 
         # Reset counter, collect leafs
         for node in self.items():
-            node._num_paths = 0
             if isinstance(node, Leaf):
                 if node.is_valid:
                     valid_nodes.append(node)
                 else:
                     invalid_nodes.append(node)
+            if isinstance(node, Decision):
+                for i in node.outgoing_transitions:
+                    i._num_paths = 0
 
         to_visit = valid_nodes + invalid_nodes
 
@@ -266,6 +273,7 @@ class OutgoingTransition:
     def __init__(self, target: Node, is_inverting: bool) -> None:
         self.target = target
         self.is_inverting = is_inverting
+        self._num_paths: int = 0
 
 
 class IncomingTransition:

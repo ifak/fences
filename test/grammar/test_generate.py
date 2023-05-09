@@ -73,7 +73,7 @@ class GenerateTest(TestCase):
             ],
             members: [
                 member,
-                # member + "," + members,# TODO: recursion
+                member + "," + members,
             ],
             member: [
                 whitespace + string + whitespace + ":" + element,
@@ -84,7 +84,7 @@ class GenerateTest(TestCase):
             ],
             elements: [
                 element,
-                # element + "," + elements, # TODO: recursion
+                element + "," + elements,
             ],
             element: [
                 whitespace + value + whitespace,
@@ -126,7 +126,7 @@ class GenerateTest(TestCase):
             ],
             digits: [
                 digit,
-                # digit + digits, # TODO: recursion
+                digit + digits,
             ],
             digit: [
                 '0',
@@ -180,23 +180,6 @@ class GenerateTest(TestCase):
 
         self.check(grammar, start, is_valid)
 
-    def DISABLED_test_recursion(self):
-        digits = NonTerminal("digits")
-        digit = NonTerminal("digit")
-
-        grammar: Grammar = {
-            digits: [
-                digit,
-                digit + digits,
-            ],
-            digit: [
-                '0',
-                '1'
-            ],
-        }
-        self.check(grammar, digits, lambda x: True)
-
-
     def test_number(self):
         number = NonTerminal("number")
         integer = NonTerminal("integer")
@@ -218,7 +201,7 @@ class GenerateTest(TestCase):
             ],
             digits: [
                 digit,
-                # digit + digits,
+                digit + digits,
             ],
             digit: [
                 '0',

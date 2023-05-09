@@ -1,11 +1,14 @@
 from fences.regex import parse
 import unittest
 import re
+from fences.core.render import render
 
 class TestParse(unittest.TestCase):
 
-    def check(self, s):
+    def check(self, s, debug=False):
         graph = parse.parse(s)
+        if debug:
+            render(graph).write_svg('graph.svg')
         for i in graph.items():
             i.description()
         regex = re.compile(s)
