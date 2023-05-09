@@ -1,4 +1,4 @@
-from fences.grammar.types import Grammar, NonTerminal, Terminal as T
+from fences.grammar.types import Grammar, NonTerminal, Terminal as T, CharacterRange
 from fences.grammar.convert import convert
 
 from unittest import TestCase
@@ -97,7 +97,7 @@ class GenerateTest(TestCase):
                 character + characters
             ],
             character: [
-                'A',  # TODO: char range
+                CharacterRange(' ', None), # TODO: without '"' and '\'
                 T('\\') + escape,
             ],
             escape: [
@@ -113,7 +113,8 @@ class GenerateTest(TestCase):
             ],
             hexn: [
                 digit,
-                'A'  # TODO: char range
+                CharacterRange('A', 'F'),
+                CharacterRange('a', 'f'),
             ],
             number: [
                 integer + fraction + exponent,
@@ -133,7 +134,7 @@ class GenerateTest(TestCase):
                 one_to_nine,
             ],
             one_to_nine: [
-                '1',  # TODO: char range
+                CharacterRange('1', '9')
             ],
             fraction: [
                 "",
@@ -208,7 +209,7 @@ class GenerateTest(TestCase):
                 one_to_nine,
             ],
             one_to_nine: [
-                '1',  # TODO: char range
+                CharacterRange('1', '9'),
             ],
             fraction: [
                 "",
