@@ -1,6 +1,6 @@
 from typing import List
-from fences.core.node import Node, Leaf, Node, Decision, Reference, NoOpDecision
-from .types import Grammar, Terminal, NonTerminal, RightHandSide, Concatenation, CharacterRange
+from fences.core.node import Node, Leaf, Node, Decision, Reference, NoOpDecision, NoOpLeaf
+from .types import Grammar, Terminal, NonTerminal, RightHandSide, Concatenation, CharacterRange, Alternative, Repetition
 from .exceptions import GrammarException
 import string
 
@@ -48,10 +48,9 @@ def convert(grammar: Grammar, start='start') -> Node:
         start = start.name
 
     all_nodes: List[Node] = []
-    for non_terminal, productions in grammar.items():
+    for non_terminal, rhs in grammar.items():
         node = NoOpDecision(non_terminal.name, False)
-        for production in productions:
-            node.add_transition(_convert(production))
+        node.add_transition(_convert(rhs))
         all_nodes.append(node)
 
     root = CreateInput(None, True)
@@ -77,6 +76,7 @@ def _convert_concatenation(concatenation: Concatenation) -> Node:
         sub_root.add_transition(_convert(i))
     return sub_root
 
+
 def _convert_character_range(char_range: CharacterRange) -> Node:
     sub_root = NoOpDecision(None, False)
 
@@ -88,16 +88,55 @@ def _convert_character_range(char_range: CharacterRange) -> Node:
 
     return sub_root
 
-def _convert(production: RightHandSide) -> Node:
-    if isinstance(production, Terminal):
-        return _convert_terminal(production)
-    elif isinstance(production, str):  # shorthand version of above
-        return _convert_terminal(Terminal(production))
-    elif isinstance(production, NonTerminal):
-        return _convert_non_terminal(production)
-    elif isinstance(production, Concatenation):
-        return _convert_concatenation(production)
-    elif isinstance(production, CharacterRange):
-        return _convert_character_range(production)
+
+def _convert_alternative(elements: List[RightHandSide]) -> Node:
+    root = NoOpDecision(None, False)
+    for element in elements:
+        root.add_transition(_convert(element))
+    return root
+
+
+def _convert_repetition(repetition: Repetition) -> Node:
+    root = NoOpDecision(None, False)
+    child = _convert(repetition.element)
+
+    if repetition.start == 0:
+        root.add_transition(NoOpLeaf(None, True))
     else:
-        raise GrammarException(f"Unknown type in grammar: {production}")
+        lower = NoOpDecision(None, True)
+        for _ in range(repetition.start):
+            lower.add_transition(child)
+        root.add_transition(lower)
+
+    if repetition.start != repetition.stop:
+        if repetition.stop is None:
+            stop = repetition.start + 3
+        else:
+            stop = repetition.stop
+        upper = NoOpDecision(None, True)
+        for _ in range(stop):
+            upper.add_transition(child)
+        root.add_transition(upper)
+
+    return root
+
+
+def _convert(rhs: RightHandSide) -> Node:
+    if isinstance(rhs, Terminal):
+        return _convert_terminal(rhs)
+    elif isinstance(rhs, str):  # shorthand version of above
+        return _convert_terminal(Terminal(rhs))
+    elif isinstance(rhs, NonTerminal):
+        return _convert_non_terminal(rhs)
+    elif isinstance(rhs, Concatenation):
+        return _convert_concatenation(rhs)
+    elif isinstance(rhs, CharacterRange):
+        return _convert_character_range(rhs)
+    elif isinstance(rhs, Alternative):
+        return _convert_alternative(rhs.elements)
+    elif isinstance(rhs, list):  # shorthand version of above
+        return _convert_alternative(rhs)
+    elif isinstance(rhs, Repetition):
+        return _convert_repetition(rhs)
+    else:
+        raise GrammarException(f"Unknown type in grammar: {rhs}")

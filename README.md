@@ -24,6 +24,8 @@ It uses [Lark](https://github.com/lark-parser/lark) for regex parsing, but in th
 
 ## Usage
 
+### Regular Expressions
+
 Generate samples for regular expressions:
 
 ```python
@@ -48,6 +50,7 @@ xyxyxya
 ```
 </details>
 
+### JSON schema
 
 Generate samples for json schema:
 
@@ -114,6 +117,7 @@ Invalid:
 ```
 </details>
 
+### XML Schema
 
 Generate samples for XML schema:
 
@@ -227,6 +231,60 @@ Invalid:
 
 </details>
 
+### Grammar
+
+Generate samples for a grammar:
+
+```python
+from fences.grammar.types import NonTerminal, Grammar, CharacterRange
+from fences import parse_grammar
+
+start = NonTerminal("start")
+integer = NonTerminal("integer")
+fraction = NonTerminal("fraction")
+exponent = NonTerminal("exponent")
+digit = NonTerminal("digit")
+digits = NonTerminal("digits")
+one_to_nine = NonTerminal("one_to_nine")
+sign = NonTerminal("sign")
+grammar: Grammar = {
+    start: integer + fraction + exponent,
+    integer: digit
+            | one_to_nine + digits
+            | '-' + digit
+            | '-' + one_to_nine + digits,
+    digits: digit
+            | digit + digits,
+    digit: '0'
+            | one_to_nine,
+    one_to_nine: CharacterRange('1', '9'),
+    fraction: ""
+            | "." + digits,
+    exponent: ""
+            | 'E' + sign + digits
+            | "e" + sign + digits,
+    sign: ["", "+", "-"]
+}
+
+graph = parse_grammar(grammar)
+for i in graph.generate_paths():
+    sample = graph.execute(i.path)
+    print(sample)
+```
+
+<details>
+<summary>Output</summary>
+
+```
+0
+91.090E10
+-9e+01
+-901.09
+0E-10
+```
+
+</details>
+
 ## Real-World Examples
 
 Find some real-world examples in the `examples` folder.
@@ -242,3 +300,7 @@ For XML:
 
 Python's default XML implementation `xml.etree.ElementTree` has a very poor support for namespaces (https://docs.python.org/3/library/xml.etree.elementtree.html#parsing-xml-with-namespaces).
 This might lead to problems when using the `targetNamespace` attribute in your XML schema.
+
+For Grammars:
+
+Fences currently does not generate invalid samples for grammars.

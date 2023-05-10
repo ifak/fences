@@ -1,38 +1,75 @@
-from typing import Dict, Union, List, Optional
+from typing import Dict, List, Optional, Tuple
 from .exceptions import CharacterRangeException
 
-RightHandSide = Union["NonTerminal", "Terminal"]
+
+class RightHandSide:
+    def __add__(self, other: "RightHandSide") -> "Concatenation":
+        return Concatenation([self, other])
+
+    def __radd__(self, other: "RightHandSide") -> "Concatenation":
+        return Concatenation([other, self])
+
+    def __or__(self, other: "RightHandSide") -> "Alternative":
+        return Alternative([self, other])
+
+    def __ror__(self, other: "RightHandSide") -> "Alternative":
+        return Alternative([other, self])
+
+    def __mul__(self, other: Tuple[int, Optional[int]]) -> "Repetition":
+        assert len(other) == 2
+        return Repetition(self, other[0], other[1])
+
+# Support for +
 
 
-class Concatenation:
+class Concatenation(RightHandSide):
 
-    def __init__(self) -> None:
-        self.elements: List[RightHandSide] = []
+    def __init__(self, elements: List[RightHandSide]) -> None:
+        self.elements = elements
 
-    def __add__(self, other) -> "Concatenation":
-        result = Concatenation()
-        result.elements = self.elements.copy()
-        result.elements.append(other)
-        return result
+    def __add__(self, other: RightHandSide) -> "Concatenation":
+        if isinstance(other, Concatenation):
+            return Concatenation(self.elements + other.elements)
+        else:
+            return Concatenation(self.elements + [other])
 
 
-class NonTerminal():
+# Support for * (start, stop)
+
+
+class Repetition(RightHandSide):
+    def __init__(self, element: RightHandSide, start: int, stop: Optional[int]):
+        self.element = element
+        self.start = start
+        self.stop = stop
+
+
+# Support for |
+
+class Alternative(RightHandSide):
+    def __init__(self, elements: List[RightHandSide]):
+        self.elements = elements
+
+    def __or__(self, other: RightHandSide) -> "Alternative":
+        if isinstance(other, Alternative):
+            return Alternative(self.elements + other.elements)
+        else:
+            return Alternative(self.elements + [other])
+
+
+# Other
+
+class NonTerminal(RightHandSide):
     def __init__(self, name: str):
         self.name = name
 
-    def __add__(self, other: RightHandSide) -> Concatenation:
-        return Concatenation() + self + other
 
-
-class Terminal():
+class Terminal(RightHandSide):
     def __init__(self, value: str):
         self.value = value
 
-    def __add__(self, other: RightHandSide) -> Concatenation:
-        return Concatenation() + self + other
 
-
-class CharacterRange():
+class CharacterRange(RightHandSide):
 
     UNICODE_MAX = 0x10FFF
 
@@ -58,4 +95,4 @@ class CharacterRange():
                 f"stop must be after start")
 
 
-Grammar = Dict[NonTerminal, List[RightHandSide]]
+Grammar = Dict[NonTerminal, RightHandSide]

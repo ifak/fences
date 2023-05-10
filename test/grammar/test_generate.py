@@ -1,10 +1,9 @@
-from fences.grammar.types import Grammar, NonTerminal, Terminal as T, CharacterRange
+from fences.grammar.types import Grammar, NonTerminal, CharacterRange
 from fences.grammar.convert import convert
 
 from unittest import TestCase
 from typing import Callable
 
-from fences.core.node import Node
 from fences.core.render import render
 from fences.core.debug import check_consistency
 
@@ -68,8 +67,8 @@ class GenerateTest(TestCase):
                 "null",
             ],
             obj: [
-                T("{") + whitespace + "}",
-                T("{") + members + "}",
+                "{" + whitespace + "}",
+                "{" + members + "}",
             ],
             members: [
                 member,
@@ -79,8 +78,8 @@ class GenerateTest(TestCase):
                 whitespace + string + whitespace + ":" + element,
             ],
             array: [
-                T("[") + whitespace + "]",
-                T("[") + elements + "]",
+                "[" + whitespace + "]",
+                "[" + elements + "]",
             ],
             elements: [
                 element,
@@ -90,15 +89,15 @@ class GenerateTest(TestCase):
                 whitespace + value + whitespace,
             ],
             string: [
-                T('"') + characters + '"'
+                '"' + characters + '"'
             ],
             characters: [
                 "",
                 character + characters
             ],
             character: [
-                CharacterRange(' ', None), # TODO: without '"' and '\'
-                T('\\') + escape,
+                CharacterRange(' ', None),  # TODO: without '"' and '\'
+                '\\' + escape,
             ],
             escape: [
                 '"',
@@ -109,7 +108,7 @@ class GenerateTest(TestCase):
                 'n',
                 'r',
                 't',
-                T('u') + hexn + hexn + hexn + hexn,
+                'u' + hexn + hexn + hexn + hexn,
             ],
             hexn: [
                 digit,
@@ -122,8 +121,8 @@ class GenerateTest(TestCase):
             integer: [
                 digit,
                 one_to_nine + digits,
-                T('-') + digit,
-                T('-') + one_to_nine + digits,
+                '-' + digit,
+                '-' + one_to_nine + digits,
             ],
             digits: [
                 digit,
@@ -138,12 +137,12 @@ class GenerateTest(TestCase):
             ],
             fraction: [
                 "",
-                T(".") + digits,
+                "." + digits,
             ],
             exponent: [
                 "",
-                T('E') + sign + digits,
-                T("e") + sign + digits,
+                'E' + sign + digits,
+                "e" + sign + digits,
             ],
             sign: [
                 "",
@@ -152,10 +151,10 @@ class GenerateTest(TestCase):
             ],
             whitespace: [
                 '',
-                T('\u0020') + whitespace,
-                T('\u000A') + whitespace,
-                T('\u000D') + whitespace,
-                T('\u0009') + whitespace,
+                '\u0020' + whitespace,
+                '\u000A' + whitespace,
+                '\u000D' + whitespace,
+                '\u0009' + whitespace,
             ]
         }
 
@@ -170,10 +169,9 @@ class GenerateTest(TestCase):
     def test_simple(self):
         start = NonTerminal("start")
         grammar: Grammar = {
-            start: {
-                T("bar") + start,
+            start:
+                "bar" + start |
                 'END'
-            }
         }
 
         def is_valid(sample: str):
@@ -191,40 +189,22 @@ class GenerateTest(TestCase):
         one_to_nine = NonTerminal("one_to_nine")
         sign = NonTerminal("sign")
         grammar: Grammar = {
-            number: [
-                integer + fraction + exponent,
-            ],
-            integer: [
-                digit,
-                one_to_nine + digits,
-                T('-') + digit,
-                T('-') + one_to_nine + digits,
-            ],
-            digits: [
-                digit,
-                digit + digits,
-            ],
-            digit: [
-                '0',
-                one_to_nine,
-            ],
-            one_to_nine: [
-                CharacterRange('1', '9'),
-            ],
-            fraction: [
-                "",
-                T(".") + digits,
-            ],
-            exponent: [
-                "",
-                T('E') + sign + digits,
-                T("e") + sign + digits,
-            ],
-            sign: [
-                "",
-                "+",
-                "-",
-            ]
+            number: integer + fraction + exponent,
+            integer: digit
+                   | one_to_nine + digits
+                   | '-' + digit
+                   | '-' + one_to_nine + digits,
+            digits: digit
+                  | digit + digits,
+            digit: '0'
+                 | one_to_nine,
+            one_to_nine: CharacterRange('1', '9'),
+            fraction: ""
+                    | "." + digits,
+            exponent: ""
+                    | 'E' + sign + digits
+                    | "e" + sign + digits,
+            sign: ["", "+", "-"]
         }
 
         def is_valid(sample: str) -> bool:
@@ -237,17 +217,18 @@ class GenerateTest(TestCase):
 
     def test_whitespace(self):
         whitespace = NonTerminal("whitespace")
+        whitespaces = NonTerminal("whitespaces")
         grammar: Grammar = {
             whitespace: [
-                '',
-                T('\u0020') + whitespace,
-                T('\u000A') + whitespace,
-                T('\u000D') + whitespace,
-                T('\u0009') + whitespace,
-            ]
+                '\u0020',
+                '\u000A',
+                '\u000D',
+                '\u0009',
+            ],
+            whitespaces: whitespace*(0,None)
         }
 
         def is_valid(sample: str) -> bool:
             return sample.strip() == ''
 
-        self.check(grammar, whitespace, is_valid)
+        self.check(grammar, whitespaces, is_valid)
