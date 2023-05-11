@@ -236,10 +236,10 @@ Invalid:
 Generate samples for a grammar:
 
 ```python
-from fences.grammar.types import NonTerminal, Grammar, CharacterRange
+from fences.grammar.types import NonTerminal, CharacterRange
 from fences import parse_grammar
 
-start = NonTerminal("start")
+number = NonTerminal("number")
 integer = NonTerminal("integer")
 fraction = NonTerminal("fraction")
 exponent = NonTerminal("exponent")
@@ -247,26 +247,26 @@ digit = NonTerminal("digit")
 digits = NonTerminal("digits")
 one_to_nine = NonTerminal("one_to_nine")
 sign = NonTerminal("sign")
-grammar: Grammar = {
-    start: integer + fraction + exponent,
-    integer: digit
-            | one_to_nine + digits
-            | '-' + digit
-            | '-' + one_to_nine + digits,
-    digits: digit
-            | digit + digits,
-    digit: '0'
-            | one_to_nine,
+
+grammar = {
+    number:      integer + fraction + exponent,
+    integer:     digit
+                 | one_to_nine + digits
+                 | '-' + digit
+                 | '-' + one_to_nine + digits,
+    digit:       '0'
+                 | one_to_nine,
+    digits:      digit*(1, None),
     one_to_nine: CharacterRange('1', '9'),
-    fraction: ""
-            | "." + digits,
-    exponent: ""
-            | 'E' + sign + digits
-            | "e" + sign + digits,
-    sign: ["", "+", "-"]
+    fraction:    ""
+                 | "." + digits,
+    exponent:    ""
+                 | 'E' + sign + digits
+                 | "e" + sign + digits,
+    sign:        ["", "+", "-"]
 }
 
-graph = parse_grammar(grammar)
+graph = parse_grammar(grammar, number)
 for i in graph.generate_paths():
     sample = graph.execute(i.path)
     print(sample)
@@ -277,10 +277,10 @@ for i in graph.generate_paths():
 
 ```
 0
-91.090E10
--9e+01
--901.09
-0E-10
+91.0901E0901
+-0e+9
+-10901.0
+9E-0109
 ```
 
 </details>
