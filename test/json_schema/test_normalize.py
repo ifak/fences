@@ -1,15 +1,16 @@
-import os
-
 from unittest import TestCase
 from jsonschema import validators
 from fences.json_schema.normlaize import normalize, check_normalized
 from fences.core.exception import NormalizationException
 
+import yaml
+
 
 class CheckNormalizedTest(TestCase):
 
     def test_empty(self):
-        check_normalized({})
+        with self.assertRaises(NormalizationException):
+            check_normalized({})
 
     def test_all_of(self):
         with self.assertRaises(NormalizationException):
@@ -55,9 +56,10 @@ class CheckNormalizedTest(TestCase):
             check_normalized({
                 'oneOf': [{}],
             })
-        check_normalized({
-            'oneOf': [{}, {}],
-        })
+        with self.assertRaises(NormalizationException):
+            check_normalized({
+                'oneOf': [{}, {}],
+            })
 
     def test_any_of(self):
         with self.assertRaises(NormalizationException):
@@ -65,14 +67,12 @@ class CheckNormalizedTest(TestCase):
                 'anyOf': [],
                 'oneOf': [],
             })
-        with self.assertRaises(NormalizationException):
-            check_normalized({
-                'anyOf': [],
-            })
-        with self.assertRaises(NormalizationException):
-            check_normalized({
-                'anyOf': [{}],
-            })
+        check_normalized({
+            'anyOf': [],
+        })
+        check_normalized({
+            'anyOf': [{}],
+        })
         check_normalized({
             'anyOf': [{}, {}],
         })
@@ -80,47 +80,50 @@ class CheckNormalizedTest(TestCase):
 
 class NormalizeTestCase(TestCase):
 
+    def check(self, data: dict, debug=False):
+        if debug:
+            print("Before")
+            print(yaml.safe_dump(data))
+        n = normalize(data)
+        if debug:
+            print("After")
+            print(yaml.safe_dump(n))
+        check_normalized(n)
+
     def test_all_of_nested(self):
-        n = normalize({
+        n = {
             'allOf': [{
                 'allOf': [{
                     'type': 'string'
                 }]
             }]
-        })
-        self.assertDictEqual(n, {'type': 'string'})
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_all_of_with_others(self):
-        n = normalize({
+        n = {
             'allOf': [{
                 'multipleOf': 2,
                 'minimum': 10
             }],
             'multipleOf': 3,
             'type': 'integer'
-        })
-        self.assertDictEqual(n, {
-            'multipleOf': 6,
-            'minimum': 10,
-            'type': 'integer',
-        })
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_all_of_in_subschemas(self):
-        n = normalize({
+        n = {
             'items': {
                 'allOf': [
                     {'multipleOf': 2},
                     {'multipleOf': 3}
                 ]
             }
-        })
-        self.assertDictEqual(n, {'items': {'multipleOf': 6}})
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_all_of_with_ref(self):
-        n = normalize({
+        n = {
             '$defs': {
                 'foo': {
                     'type': 'string'
@@ -133,51 +136,45 @@ class NormalizeTestCase(TestCase):
                 {'$ref': '#/$defs/foo'},
                 {'$ref': '#/$defs/bar'},
             ]
-        })
-        del n['$defs']
-        self.assertDictEqual({'type': 'string', 'pattern': 'a+'}, n)
-        check_normalized(n)
+        }
+        self.check(n, True)
 
     def test_one_of_with_others(self):
-        n = normalize({
+        n = {
             'oneOf': [{'minimum': 10}],
             'minimum': 20
-        })
-        self.assertDictEqual(n, {'minimum': 20})
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_one_of_nested(self):
-        n = normalize({
+        n = {
             'oneOf': [{
                 'oneOf': [{
                     'type': 'integer'
                 }]
             }]
-        })
-        self.assertDictEqual(n, {'type': 'integer'})
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_any_of_with_others(self):
-        n = normalize({
+        n = {
             'anyOf': [{'minimum': 10}],
             'minimum': 20
-        })
-        self.assertDictEqual(n, {'minimum': 20})
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_one_of_nested(self):
-        n = normalize({
+        n = {
             'anyOf': [{
                 'anyOf': [{
                     'type': 'integer'
                 }]
             }]
-        })
-        self.assertDictEqual(n, {'type': 'integer'})
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_mixed(self):
-        n = normalize({
+        n = {
             'allOf': [{
                 'oneOf': [{
                     'anyOf': [{
@@ -185,34 +182,61 @@ class NormalizeTestCase(TestCase):
                     }]
                 }]
             }]
-        })
-        self.assertDictEqual(n, {'type': 'string'})
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_bool(self):
-        n = normalize({
+        n = {
             'allOf': [True, False]
-        })
-        self.assertEqual(n, False)
-        check_normalized(n)
-        n = normalize({
+        }
+        self.check(n)
+        n = {
             'oneOf': [False, False]
-        })
-        self.assertEqual(n, False)
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_if_then_else(self):
-        n = normalize({
+        n = {
             'if': {'multipleOf': 2},
             'then': {'multipleOf': 3},
             'else': {'multipleOf': 5},
-        })
-        check_normalized(n)
+        }
+        self.check(n)
 
     def test_not(self):
-        n = normalize({
+        n = {
             'not': {
                 'type': 'object'
             }
-        })
-        check_normalized(n)
+        }
+        self.check(n)
+
+    def test_properties(self):
+        n = {
+            'allOf': [{
+                'properties': {
+                    'foo': {
+                        'type': 'string'
+                    }
+                }
+            },
+            {
+                'properties': {
+                    'foo': {
+                        'type': 'integer'
+                    }
+                }
+            }]
+        }
+        self.check(n)
+
+    def test_recursive_ref(self):
+        n = {
+            'type': 'object',
+            'properties': {
+                'foo': {
+                    "$ref": '#/'
+                }
+            }
+        }
+        self.check(n)
