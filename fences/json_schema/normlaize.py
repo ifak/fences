@@ -1,7 +1,9 @@
-from typing import List, Union, Set, Dict
+from typing import List, Union, Set, Dict, Tuple
 from fences.core.exception import NormalizationException
 from fences.json_schema.json_pointer import JsonPointer
 import math
+import hashlib
+import json
 
 SchemaType = Union[dict, bool]
 
@@ -38,14 +40,23 @@ def _merge_type(a: Union[List[str], str], b: Union[List[str], str]) -> List[str]
 _simple_mergers = {
     'required': lambda a, b: list(set(a) | set(b)),
     'multipleOf': lambda a, b: abs(a*b) // math.gcd(a, b),
-    'items': lambda a, b: merge([a, b]),
+    'items': lambda a, b: {'allOf': [a, b]},
     'minimum': lambda a, b: max(a, b),
     'maximum': lambda a, b: min(a, b),
     'type': _merge_type,
+    'minItems': lambda a, b: max(a, b),
+    'pattern': lambda a, b: f"({a})&({b})",
+    'minLength': lambda a, b: max(a, b),
+    'maxLength': lambda a, b: min(a, b),
+    'const': lambda a, b: a,  # todo
+    'enum': lambda a, b: a + b,
+    'format': lambda a, b: a, # todo
+    'dependentRequired': lambda a, b: a, # todo
+    'deprecated': lambda a, b: a or b,
 }
 
 
-def _merge_properties(result: dict, to_add: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> dict:
+def _merge_properties(result: dict, to_add: dict) -> dict:
     # Must merge properties and additionalProperties together
     # Schema 1: a: 1a,    b: 1b,              ...: 1n
     # Schema 2:           b: 2b,    c: 2c,    ...: 2n
@@ -53,23 +64,32 @@ def _merge_properties(result: dict, to_add: dict, resolver: Resolver, new_refs: 
 
     props_result = result.get('properties', {})
     props_to_add = to_add.get('properties', {})
-    additional_result = result.get('additionalProperties', NORM_TRUE)
-    additional_to_add = to_add.get('additionalProperties', NORM_TRUE)
+    additional_result = result.get('additionalProperties')
+    additional_to_add = to_add.get('additionalProperties')
     for property_name, schema in props_result.items():
         if property_name in props_to_add:
-            props_result[property_name] = merge(
-                [schema, props_to_add[property_name]], resolver, new_refs)
+            props_result[property_name] = {'allOf': [
+                schema, props_to_add[property_name]
+            ]}
         else:
-            props_result[property_name] = merge(
-                [schema, additional_to_add], resolver, new_refs)
+            if additional_to_add is None:
+                props_result[property_name] = schema
+            else:
+                props_result[property_name] = {'allOf': [
+                    schema, additional_to_add
+                ]}
     for property_name, schema in props_to_add.items():
         if property_name not in props_result:
-            props_result[property_name] = merge(
-                [schema, additional_result], resolver, new_refs)
+            if additional_result is None:
+                props_result[property_name] = schema
+            else:
+                props_result[property_name] = {'allOf': [
+                    schema, additional_result
+                ]}
     return props_result
 
 
-def _merge_prefix_items(result: dict, to_add: dict, resolver: Resolver) -> dict:
+def _merge_prefix_items(result: dict, to_add: dict) -> dict:
     # Must merge items and prefixItems together
     # Schema 1: a,   a,   a,   b...
     # Schema 2: c,   c,   d...
@@ -92,7 +112,7 @@ def _merge_prefix_items(result: dict, to_add: dict, resolver: Resolver) -> dict:
 
     assert len(prefix_items_a) == len(prefix_items_b)
     for i, j in zip(prefix_items_a, prefix_items_b):
-        result_prefix_items.append(merge([i, j], resolver))
+        result_prefix_items.append({'allOf': [i, j]})
 
     return result_prefix_items
 
@@ -103,11 +123,11 @@ _complex_mergers = {
 }
 
 
-def _merge(result: dict, to_add: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> None:
+def _merge(result: dict, to_add: dict) -> None:
 
     for key, merger in _complex_mergers.items():
         if key in result or key in to_add:
-            result[key] = merger(result, to_add, resolver, new_refs)
+            result[key] = merger(result, to_add)
 
     for key, value in result.items():
         if key not in to_add:
@@ -126,28 +146,33 @@ def _merge(result: dict, to_add: dict, resolver: Resolver, new_refs: Dict[str, d
         if key not in result and key not in _complex_mergers:
             result[key] = value
 
+def merge(schemas: List[SchemaType]) -> SchemaType:
+    return merge_simple(schemas)
 
-def inline_refs(schema: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> dict:
-    try:
-        ref = schema['$ref']
-    except KeyError:
-        return schema
-    assert len(schema.keys()) == 1
-    pointer = JsonPointer.from_string(ref)
-    new_schema = resolver.resolve(pointer)
-    return inline_refs(new_schema, resolver, new_refs)
+def merge_simple(schemas: List[SchemaType]) -> SchemaType:
+    assert len(schemas) > 0
+    results = []
+    num = max([len(s['anyOf']) for s in schemas])
+    for idx in range(num):
+        result = {}
+        for schema in schemas:
+            ao = schema['anyOf']
+            if len(ao) == 0: continue
+            option = ao[idx % len(ao)]
+            _merge(result, option)
+        results.append(result)
+    return {'anyOf': results}
 
 
-def merge(schemas: List[SchemaType], resolver: Resolver, new_refs: Dict[str, dict]) -> SchemaType:
+def merge_all(schemas: List[SchemaType]) -> SchemaType:
     assert len(schemas) > 0
     result = [{}]
     for schema in schemas:
         new_result = []
         for option in schema['anyOf']:
-            option = inline_refs(option, resolver, new_refs)
             for i in result:
                 ii = i.copy()
-                _merge(ii, option, resolver, new_refs)
+                _merge(ii, option)
                 new_result.append(ii)
         result = new_result
     return {'anyOf': result}
@@ -185,7 +210,37 @@ def _simplify_if_then_else(schema: dict, resolver: Resolver):
     return {'anyOf': any_of}
 
 
-def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> dict:
+def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
+    if schema is False:
+        return NORM_FALSE, False
+
+    if schema is True:
+        return NORM_TRUE, True
+
+    contains_refs = False
+
+    if '$ref' in schema:
+        side_schema = schema.copy()
+        del side_schema['$ref']
+        pointer = JsonPointer.from_string(schema['$ref'])
+        ref_schema = resolver.resolve(pointer)
+        schema = {'allOf': [side_schema, ref_schema]}
+        contains_refs = True
+
+    for kw in ['anyOf', 'allOf', 'oneOf']:
+        for idx, sub_schema in enumerate(schema.get(kw, [])):
+            (new_schema, new_contains_refs) = _inline_refs(sub_schema, resolver)
+            schema[kw][idx] = new_schema
+            contains_refs = contains_refs or new_contains_refs
+    if 'not' in schema:
+        (new_schema, new_contains_refs) = _inline_refs(schema['not'], resolver)
+        schema['not'] = new_schema
+        contains_refs = contains_refs or new_contains_refs
+
+    return schema, contains_refs
+
+
+def _to_dnf(schema: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> dict:
 
     if schema is False:
         return NORM_FALSE
@@ -193,42 +248,13 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> d
     if schema is True:
         return NORM_TRUE
 
-    # Iterate sub-schemas
-    schema = schema.copy()
-    for kw in ['additionalProperties', 'items', 'additionalItems']:
-        if kw in schema:
-            schema[kw] = _normalize(schema[kw], resolver, new_refs)
-
-    for name, sub_schema in schema.get('properties', {}).items():
-        schema['properties'][name] = _normalize(sub_schema, resolver, new_refs)
-
-    prefix_items = schema.get('prefixItems', [])
-    for idx, sub_schema in enumerate(prefix_items):
-        prefix_items[idx] = _normalize(prefix_items[idx], resolver)
-
-    if '$ref' in schema:
-        ref = schema['$ref']
-        if ref not in new_refs:
-            pointer = JsonPointer.from_string(ref)
-            new_refs[ref] = None
-            new_refs[ref] = _normalize(resolver.resolve(pointer), resolver, new_refs)
-
-    # Simplify
     schema = _simplify_if_then_else(schema, resolver)
-
-    # Shortcut for trivial schemas
-    has_logical_applicators = False
-    for i in ['not', 'allOf', 'oneOf', 'anyOf']:
-        if i in schema:
-            has_logical_applicators = True
-    if not has_logical_applicators:
-        return {'anyOf': [schema]}
 
     # anyOf
     if 'anyOf' in schema:
         any_ofs = []
         for sub_schema in schema['anyOf']:
-            normalized_sub_schema = _normalize(sub_schema, resolver, new_refs)
+            normalized_sub_schema = _to_dnf(sub_schema, resolver, new_refs)
             any_ofs.extend(normalized_sub_schema['anyOf'])
     else:
         any_ofs = [{}]
@@ -237,14 +263,14 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> d
     if 'oneOf' in schema:
         one_ofs = []
         normalized_sub_schemas = [
-            _normalize(sub_schema, resolver, new_refs)
+            _to_dnf(sub_schema, resolver, new_refs)
             for sub_schema in schema['oneOf']
         ]
         for idx, _ in enumerate(normalized_sub_schemas):
             options = merge([
                 invert(i) if i == idx else i
                 for i in normalized_sub_schemas
-            ], resolver, new_refs)
+            ])
             one_ofs.extend(options['anyOf'])
     else:
         one_ofs = [{}]
@@ -252,19 +278,62 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> d
     # allOf
     all_ofs = []
     side_schema = schema.copy()
-    for i in ['allOf', 'anyOf', 'oneOf', 'not']:
-        if i in side_schema:
-            del side_schema[i]
-    all_ofs.append(_normalize(side_schema, resolver, new_refs))
+    for sub_schema in ['allOf', 'anyOf', 'oneOf', 'not']:
+        if sub_schema in side_schema:
+            del side_schema[sub_schema]
+    all_ofs.append({'anyOf': [side_schema]})
     for sub_schema in schema.get('allOf', []):
-        all_ofs.append(_normalize(sub_schema, resolver, new_refs))
-    s = merge(all_ofs, resolver, new_refs)
+        all_ofs.append(_to_dnf(sub_schema, resolver, new_refs))
+    s = merge(all_ofs)
 
     return merge([
         {'anyOf': any_ofs},
         {'anyOf': one_ofs},
         s
-    ], resolver, new_refs)
+    ])
+
+
+def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict]) -> dict:
+
+    if schema is False:
+        return NORM_FALSE
+
+    if schema is True:
+        return NORM_TRUE
+
+    # Check cache (to avoid stack overflows due to recursive schemas)
+    new_ref_name = hashlib.sha1(json.dumps(schema).encode()).hexdigest()
+    if new_ref_name in new_refs:
+        return {'anyOf': [{'$ref': f"#/$defs/{new_ref_name}"}]}
+
+    # Inline all references (if any)
+    (schema, contains_refs) = _inline_refs(schema, resolver)
+
+    result = _to_dnf(schema, resolver, new_refs)
+
+    # Store new schema if sub-schemas later try to reference it
+    if contains_refs:
+        new_refs[new_ref_name] = result
+
+    # Iterate sub-schemas
+    for sub_schema in result['anyOf']:
+        for kw in ['additionalProperties', 'items', 'additionalItems']:
+            if kw in sub_schema:
+                sub_schema[kw] = _normalize(sub_schema[kw], resolver, new_refs)
+
+        props: dict = sub_schema.get('properties', {})
+        for name, sub_sub_schema in props.items():
+            props[name] = _normalize(sub_sub_schema, resolver, new_refs)
+
+        prefix_items: list = sub_schema.get('prefixItems', [])
+        for idx, sub_sub_schema in enumerate(prefix_items):
+            prefix_items[idx] = _normalize(sub_sub_schema, resolver)
+
+    # Return
+    if contains_refs:
+        return {'anyOf': [{'$ref': f"#/$defs/{new_ref_name}"}]}
+    else:
+        return result
 
 
 def normalize(schema: SchemaType) -> any:
@@ -278,14 +347,15 @@ def normalize(schema: SchemaType) -> any:
         raise NormalizationException(
             f"Schema must be of type bool or dict, got {type(schema)}")
     new_schema = schema.copy()
-    if '$schema' in schema:
-        del new_schema['$schema']
+    for kw in ['$schema', '$defs']:
+        if kw in schema:
+            del new_schema[kw]
     resolver = Resolver(schema)
     new_refs: Dict[str, dict] = {}
     new_schema = _normalize(new_schema, resolver, new_refs)
-    if isinstance(new_schema, dict):
-        if '$schema' in schema:
-            new_schema['$schema'] = schema['$schema']
+    if '$schema' in schema:
+        new_schema['$schema'] = schema['$schema']
+    new_schema['$defs'] = new_refs
     return new_schema
 
 
@@ -300,11 +370,12 @@ def _check_normalized(schema: SchemaType, resolver: Resolver, checked_refs: Set[
         raise NormalizationException(f"Must be a dict, got {schema}")
 
     keys = set(schema.keys())
-    for i in ['$schema']:
+    for i in ['$schema', '$defs']:
         if i in keys:
             keys.remove(i)
-    if 'anyOf' not in keys or len(keys) != 1:
-        raise NormalizationException(f"anyOf must be the only key, got {keys}")
+    if len(keys) != 1 or 'anyOf' not in keys:
+        raise NormalizationException(
+            f"Schema has one key not being anyOf, got {keys}")
 
     any_of = schema['anyOf']
     if not isinstance(any_of, list):
@@ -318,20 +389,24 @@ def _check_normalized(schema: SchemaType, resolver: Resolver, checked_refs: Set[
                 raise NormalizationException(
                     f"'{i}' not allowed in normalized sub_schema {idx}")
 
-        # Traverse sub-schemas
-        for kw in ['additionalProperties', 'items', 'additionalItems']:
-            if kw in schema:
-                _check_normalized(schema[kw], resolver)
-
-        for sub_schema in schema.get('properties', {}).values():
-            _check_normalized(sub_schema, resolver)
-
-        for sub_schema in schema.get('prefixItems', []):
-            _check_normalized(sub_schema, resolver)
-
         if '$ref' in sub_schema:
+            if len(sub_schema.keys()) != 1:
+                raise NormalizationException(
+                    f"Sub-schema {idx} has other keys beside $ref")
             ref = sub_schema['$ref']
             if ref not in checked_refs:
                 checked_refs.add(ref)
                 pointer = JsonPointer.from_string(ref)
-                _check_normalized(resolver.resolve(pointer), resolver)
+                _check_normalized(resolver.resolve(
+                    pointer), resolver, checked_refs)
+
+        # Traverse sub-schemas
+        for kw in ['additionalProperties', 'items', 'additionalItems']:
+            if kw in schema:
+                _check_normalized(schema[kw], resolver, checked_refs)
+
+        for i in sub_schema.get('properties', {}).values():
+            _check_normalized(i, resolver, checked_refs)
+
+        for i in sub_schema.get('prefixItems', []):
+            _check_normalized(i, resolver, checked_refs)
