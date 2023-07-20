@@ -77,10 +77,21 @@ class CheckNormalizedTest(TestCase):
             'anyOf': [{}, {}],
         })
 
+    def test_ref(self):
+        with self.assertRaises(NormalizationException):
+            check_normalized({'$ref': 'foo', 'x': 'bar'})
+        with self.assertRaises(NormalizationException):
+            check_normalized({'$ref': 'foo', 'anyOf': 'bar'})
+        with self.assertRaises(NormalizationException):
+            check_normalized({'anyOf': [{'$ref': '#/', 'invalid': 'x'}]})
+        check_normalized({'anyOf': [{'$ref': '#/'}]})
+
 
 class NormalizeTestCase(TestCase):
 
     def check(self, data: dict, debug=False):
+        yaml.Dumper.ignore_aliases = lambda *args: True
+
         if debug:
             print("Before")
             print(yaml.safe_dump(data))
@@ -89,6 +100,12 @@ class NormalizeTestCase(TestCase):
             print("After")
             print(yaml.safe_dump(n))
         check_normalized(n)
+
+    def test_trivial(self):
+        n = {
+            'minimum': 10
+        }
+        self.check(n)
 
     def test_all_of_nested(self):
         n = {
@@ -137,7 +154,7 @@ class NormalizeTestCase(TestCase):
                 {'$ref': '#/$defs/bar'},
             ]
         }
-        self.check(n, True)
+        self.check(n)
 
     def test_one_of_with_others(self):
         n = {
@@ -238,5 +255,61 @@ class NormalizeTestCase(TestCase):
                     "$ref": '#/'
                 }
             }
+        }
+        self.check(n)
+
+    def test_nested_refs(self):
+        n = {
+            'properties': {
+                'children': {
+                    '$ref': '#/',
+                    'type': 'object'
+                }
+            }
+        }
+        self.check(n, True)
+
+    def test_circular_reference(self):
+        n = {
+                "properties": {
+                    "x": {
+                        'anyOf': [{
+                            "$ref": "#/"
+                        }]
+                    }
+                }
+            }
+        self.check(n)
+
+    def test_paper(self):
+        n = {
+        "type": "object",
+        "required": [
+            "children"
+        ],
+        "properties": {
+            "children": {
+            "allOf": [
+                {
+                "anyOf": [
+                    {
+                    "$ref": "#/"
+                    },
+                    {
+                    "not": {
+                        "minimum": 10
+                    }
+                    }
+                ]
+                },
+                {
+                "type": [
+                    "integer",
+                    "object"
+                ]
+                }
+            ]
+            }
+        }
         }
         self.check(n)
