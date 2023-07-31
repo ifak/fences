@@ -9,9 +9,18 @@ import copy
 
 SchemaType = Union[dict, bool]
 
-NORM_FALSE = {'anyOf': [{'type': []}]}
+NORM_FALSE = {'anyOf': [{'enum': []}]}
 NORM_TRUE = {'anyOf': [{}]}
-ALL_TYPES = ['number', 'integer', 'boolean', 'string', 'null', 'object', 'array']
+
+# This list does not contain 'integer' on purpose, see _simplify_type
+ALL_TYPES = [
+    'number',
+    'boolean',
+    'string',
+    'null',
+    'object',
+    'array'
+]
 
 
 class Resolver:
@@ -29,23 +38,52 @@ class Resolver:
 
 
 def _invert_type(t: Union[str, List[str]]):
-    if isinstance(t, str):
-        t = [t]
     return {'type': list(set(ALL_TYPES) - set(t))}
 
+
+def _invert_properties(props: dict):
+    new_props = {name: {'not': prop} for name, prop in props.items()}
+    return {
+        'type': 'object',
+        'properties': new_props,
+    }
+
+
 _inverters = {
-    'minimum': lambda x: {'exclusiveMaximum': x},
+    'minimum': lambda x: {'type': ['number'], 'exclusiveMaximum': x},
+    'maximum': lambda x: {'type': ['number'], 'exclusiveMinimum': x},
+    'exclusiveMinimum': lambda x: {'type': ['number'], 'maximum': x},
+    'exclusiveMaximum': lambda x: {'type': ['number'], 'minimum': x},
     'type': _invert_type,
+    'const': lambda x: {'NOT_const': x},
+    'enum': lambda x: {'NOT_enum': x},
+    'maxLength': lambda x: {'type': ['string'], 'minLength': x},
+    'minLength': lambda x: {'type': ['string'], 'maxLength': x},
+    'properties': _invert_properties,
+    'multipleOf': lambda x: {'type': ['number'], 'NOT_multipleOf': x},
+    'required': lambda x: {'type': ['object'], 'properties': {i: False for i in x}}
 }
 
-def invert(schema: dict) -> dict:
+
+def _invert(trivial_schema: dict) -> dict:
+    # NOT(a or b or c)
+    # = NOT(a) and NOT(b) and NOT(c)
     result = []
-    for key, value in schema.items():
+    if len(trivial_schema) == 0:
+        return NORM_FALSE
+    for key, value in trivial_schema.items():
         if key in _inverters:
             result.append(_inverters[key](value))
         else:
-            pass # TODO
+            raise NormalizationException(f"Cannot invert {key}")
     return {'anyOf': result}
+
+
+def invert(norm_schema: dict, full_merge: bool) -> dict:
+    return merge([
+        _invert(i)
+        for i in norm_schema['anyOf']
+    ], full_merge)
 
 
 def _merge_type(a: Union[List[str], str], b: Union[List[str], str]) -> List[str]:
@@ -69,8 +107,8 @@ _simple_mergers = {
     'maxLength': lambda a, b: min(a, b),
     'const': lambda a, b: a,  # todo
     'enum': lambda a, b: a + b,
-    'format': lambda a, b: a, # todo
-    'dependentRequired': lambda a, b: a, # todo
+    'format': lambda a, b: a,  # todo
+    'dependentRequired': lambda a, b: a,  # todo
     'deprecated': lambda a, b: a or b,
 }
 
@@ -165,11 +203,13 @@ def _merge(result: dict, to_add: dict) -> None:
         if key not in result and key not in _complex_mergers:
             result[key] = value
 
+
 def merge(schemas: List[SchemaType], full_merge: bool) -> SchemaType:
     if full_merge:
         return merge_full(schemas)
     else:
         return merge_simple(schemas)
+
 
 def merge_simple(schemas: List[SchemaType]) -> SchemaType:
     assert len(schemas) > 0
@@ -179,7 +219,8 @@ def merge_simple(schemas: List[SchemaType]) -> SchemaType:
         result = {}
         for schema in schemas:
             ao = schema['anyOf']
-            if len(ao) == 0: continue
+            if len(ao) == 0:
+                continue
             option = ao[idx % len(ao)]
             _merge(result, option)
         results.append(result)
@@ -200,7 +241,33 @@ def merge_full(schemas: List[SchemaType]) -> SchemaType:
     return {'anyOf': result}
 
 
-def _simplify_if_then_else(schema: dict, resolver: Resolver):
+def _simplify_type(schema: dict):
+    if 'type' not in schema:
+        return schema
+    side_schema = schema.copy()
+    types = schema.pop('type')
+    if not isinstance(types, list):
+        types = [types]
+    types: Set[str] = set(types)
+
+    # number contains integer
+    if 'number' in types:
+        if 'integer' in types:
+            types.remove('integer')
+    else:
+        if 'integer' in types:
+            types.remove('integer')
+            types.add('number')
+            side_schema['type'] = list(types)
+            return {'allOf': [
+                {'multipleOf': 1},
+                side_schema
+            ]}
+    side_schema['type'] = list(types)
+    return side_schema
+
+
+def _simplify_if_then_else(schema: dict):
     # This is valid iff:
     # (not(IF) or THEN) and (IF or ELSE)
     # <==>
@@ -210,26 +277,38 @@ def _simplify_if_then_else(schema: dict, resolver: Resolver):
     # See https://json-schema.org/understanding-json-schema/reference/conditionals.html#implication
     if 'if' not in schema and 'then' not in schema and 'else' not in schema:
         return schema
-    sub_schema = schema.copy()
-    if_schema = sub_schema.pop('if', None)
-    then_schema = sub_schema.pop('then', True)
-    else_schema = sub_schema.pop('else', True)
+    side_schema = schema.copy()
+    if_schema = side_schema.pop('if', None)
+    then_schema = side_schema.pop('then', None)
+    else_schema = side_schema.pop('else', None)
+
+    if if_schema is None:
+        return side_schema
+
+    if then_schema is None and else_schema is None:
+        return {}
+
     any_of = []
-    if if_schema is not None and else_schema is not None:
-        any_of.append({'allOf': [
-            sub_schema,
-            {'not': if_schema},
-            else_schema
-        ]})
-    if if_schema is not None and then_schema is not None:
-        any_of.append({'allOf': [
-            sub_schema,
-            if_schema,
-            then_schema
-        ]})
-    if not any_of:
-        return {'anyOf': [{}]}
-    return {'anyOf': any_of}
+
+    if then_schema is None:
+        then_schema = {}
+    any_of.append({'allOf': [
+        if_schema,
+        then_schema
+    ]})
+
+    if else_schema is None:
+        else_schema = {}
+    any_of.append({'allOf': [
+        {'not': if_schema},
+        else_schema
+    ]})
+
+    result = {'allOf': [
+        side_schema,
+        {'anyOf': any_of}
+    ]}
+    return result
 
 
 def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
@@ -256,15 +335,17 @@ def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
             (new_schema, new_contains_refs) = _inline_refs(sub_schema, resolver)
             schema[kw][idx] = new_schema
             contains_refs = contains_refs or new_contains_refs
-    if 'not' in schema:
-        (new_schema, new_contains_refs) = _inline_refs(schema['not'], resolver)
-        schema['not'] = new_schema
-        contains_refs = contains_refs or new_contains_refs
+    for kw in ['not', 'if', 'then', 'else']:
+        if kw in schema:
+            (new_schema, new_contains_refs) = _inline_refs(
+                schema[kw], resolver)
+            schema[kw] = new_schema
+            contains_refs = contains_refs or new_contains_refs
 
     return schema, contains_refs
 
 
-def _to_dnf(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full_merge: bool) -> dict:
+def _to_dnf(schema: dict, full_merge: bool) -> dict:
 
     if schema is False:
         return NORM_FALSE
@@ -272,13 +353,15 @@ def _to_dnf(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full_me
     if schema is True:
         return NORM_TRUE
 
-    schema = _simplify_if_then_else(schema, resolver)
+    schema = _simplify_if_then_else(schema)
+    schema = _simplify_type(schema)
 
     # anyOf
     if 'anyOf' in schema:
         any_ofs = []
         for sub_schema in schema['anyOf']:
-            normalized_sub_schema = _to_dnf(sub_schema, resolver, new_refs, full_merge)
+            normalized_sub_schema = _to_dnf(
+                sub_schema, full_merge)
             any_ofs.extend(normalized_sub_schema['anyOf'])
     else:
         any_ofs = [{}]
@@ -287,13 +370,13 @@ def _to_dnf(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full_me
     if 'oneOf' in schema:
         one_ofs = []
         normalized_sub_schemas = [
-            _to_dnf(sub_schema, resolver, new_refs, full_merge)
+            _to_dnf(sub_schema, full_merge)
             for sub_schema in schema['oneOf']
         ]
         for idx, _ in enumerate(normalized_sub_schemas):
             options = merge([
-                invert(i) if i == idx else i
-                for i in normalized_sub_schemas
+                invert(i, full_merge) if sub_idx == idx else i
+                for sub_idx, i in enumerate(normalized_sub_schemas)
             ], full_merge)
             one_ofs.extend(options['anyOf'])
     else:
@@ -307,22 +390,21 @@ def _to_dnf(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full_me
             del side_schema[sub_schema]
     all_ofs.append({'anyOf': [side_schema]})
     for sub_schema in schema.get('allOf', []):
-        all_ofs.append(_to_dnf(sub_schema, resolver, new_refs, full_merge))
+        all_ofs.append(_to_dnf(sub_schema, full_merge))
 
     # not
     if 'not' in schema:
-        norm_schema = _to_dnf(schema['not'], resolver, new_refs, full_merge)
-        for sub_schema in norm_schema['anyOf']:
-            inverted_schema = invert(sub_schema)
-            all_ofs.append(inverted_schema)
+        norm_schema = _to_dnf(schema['not'], full_merge)
+        all_ofs.append(invert(norm_schema, full_merge))
 
     s = merge(all_ofs, full_merge)
 
-    return merge([
+    result = merge([
         {'anyOf': any_ofs},
         {'anyOf': one_ofs},
         s
     ], full_merge)
+    return result
 
 
 def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full_merge: bool) -> dict:
@@ -333,6 +415,9 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
     if schema is True:
         return NORM_TRUE
 
+    if len(schema) == 0:
+        return NORM_TRUE
+
     # Check cache (to avoid stack overflows due to recursive schemas)
     new_ref_name = hashlib.sha1(json.dumps(schema).encode()).hexdigest()
     if new_ref_name in new_refs:
@@ -341,7 +426,7 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
     # Inline all references (if any)
     (schema, contains_refs) = _inline_refs(schema, resolver)
 
-    result = _to_dnf(schema, resolver, new_refs, full_merge)
+    result = _to_dnf(schema, resolver)
 
     # Store new schema if sub-schemas later try to reference it
     if contains_refs:
@@ -351,15 +436,18 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
     for sub_schema in result['anyOf']:
         for kw in ['additionalProperties', 'items', 'additionalItems']:
             if kw in sub_schema:
-                sub_schema[kw] = _normalize(sub_schema[kw], resolver, new_refs, full_merge)
+                sub_schema[kw] = _normalize(
+                    sub_schema[kw], resolver, new_refs, full_merge)
 
         props: dict = sub_schema.get('properties', {})
         for name, sub_sub_schema in props.items():
-            props[name] = _normalize(sub_sub_schema, resolver, new_refs, full_merge)
+            props[name] = _normalize(
+                sub_sub_schema, resolver, new_refs, full_merge)
 
         prefix_items: list = sub_schema.get('prefixItems', [])
         for idx, sub_sub_schema in enumerate(prefix_items):
-            prefix_items[idx] = _normalize(sub_sub_schema, resolver, new_refs, full_merge)
+            prefix_items[idx] = _normalize(
+                sub_sub_schema, resolver, new_refs, full_merge)
 
     # Return
     if contains_refs:
@@ -370,10 +458,10 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
 
 def normalize(schema: SchemaType, full_merge: bool = True) -> any:
     if schema is False:
-        return {'type': []}
+        return NORM_FALSE
 
     if schema is True:
-        return {}
+        return NORM_TRUE
 
     if not isinstance(schema, dict):
         raise NormalizationException(

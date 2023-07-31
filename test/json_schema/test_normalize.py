@@ -267,7 +267,7 @@ class NormalizeTestCase(TestCase):
                 }
             }
         }
-        self.check(n, True)
+        self.check(n)
 
     def test_circular_reference(self):
         n = {
