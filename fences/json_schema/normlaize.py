@@ -48,6 +48,11 @@ def _invert_properties(props: dict):
         'properties': new_props,
     }
 
+def _invert_items(items: dict):
+    return {
+        'type': 'array',
+        'items': {'not': items}
+    }
 
 _inverters = {
     'minimum': lambda x: {'type': ['number'], 'exclusiveMaximum': x},
@@ -55,13 +60,17 @@ _inverters = {
     'exclusiveMinimum': lambda x: {'type': ['number'], 'maximum': x},
     'exclusiveMaximum': lambda x: {'type': ['number'], 'minimum': x},
     'type': _invert_type,
-    'const': lambda x: {'NOT_const': x},
     'enum': lambda x: {'NOT_enum': x},
+    'NOT_enum': lambda x: {'enum': x},
     'maxLength': lambda x: {'type': ['string'], 'minLength': x},
     'minLength': lambda x: {'type': ['string'], 'maxLength': x},
     'properties': _invert_properties,
     'multipleOf': lambda x: {'type': ['number'], 'NOT_multipleOf': x},
-    'required': lambda x: {'type': ['object'], 'properties': {i: False for i in x}}
+    'required': lambda x: {'type': ['object'], 'properties': {i: False for i in x}},
+    #'required': lambda x: {'type': ['object']},
+    'items': _invert_items,
+    'minItems': lambda x: {'type': 'array', 'maxItems': x},
+    'pattern': lambda x: {'type': 'string', 'pattern': f"!({x})"}
 }
 
 
@@ -70,7 +79,7 @@ def _invert(trivial_schema: dict) -> dict:
     # = NOT(a) and NOT(b) and NOT(c)
     result = []
     if len(trivial_schema) == 0:
-        return NORM_FALSE
+        return NORM_FALSE.copy()
     for key, value in trivial_schema.items():
         if key in _inverters:
             result.append(_inverters[key](value))
@@ -102,6 +111,7 @@ _simple_mergers = {
     'maximum': lambda a, b: min(a, b),
     'type': _merge_type,
     'minItems': lambda a, b: max(a, b),
+    'maxItems': lambda a, b: min(a, b),
     'pattern': lambda a, b: f"({a})&({b})",
     'minLength': lambda a, b: max(a, b),
     'maxLength': lambda a, b: min(a, b),
@@ -110,6 +120,8 @@ _simple_mergers = {
     'format': lambda a, b: a,  # todo
     'dependentRequired': lambda a, b: a,  # todo
     'deprecated': lambda a, b: a or b,
+    'NOT_enum': lambda a, b: a + b,
+    'enum': lambda a, b: a + b,
 }
 
 
@@ -152,9 +164,9 @@ def _merge_prefix_items(result: dict, to_add: dict) -> dict:
     # Schema 2: c,   c,   d...
     # Result:   a+c, a+c, a+d, b+d...
 
-    items_a = result.get('items', NORM_TRUE)
+    items_a = result.get('items', NORM_TRUE.copy())
     prefix_items_a = result.get('prefixItems', [])
-    items_b = to_add.get('items', NORM_TRUE)
+    items_b = to_add.get('items', NORM_TRUE.copy())
     prefix_items_b = to_add.get('prefixItems', [])
     assert isinstance(prefix_items_a, list)
     assert isinstance(prefix_items_b, list)
@@ -310,13 +322,23 @@ def _simplify_if_then_else(schema: dict):
     ]}
     return result
 
+def _simplify_const(schema: dict) -> dict:
+    if 'const' not in schema:
+        return schema
+    schema = schema.copy()
+    const = schema.pop('const')
+    if 'enum' in schema:
+        schema['enum'] += [const]
+    else:
+        schema['enum'] = [const]
+    return schema
 
 def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
     if schema is False:
-        return NORM_FALSE, False
+        return NORM_FALSE.copy(), False
 
     if schema is True:
-        return NORM_TRUE, True
+        return NORM_TRUE.copy(), False
 
     contains_refs = False
 
@@ -348,11 +370,12 @@ def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
 def _to_dnf(schema: dict, full_merge: bool) -> dict:
 
     if schema is False:
-        return NORM_FALSE
+        return NORM_FALSE.copy()
 
     if schema is True:
-        return NORM_TRUE
+        return NORM_TRUE.copy()
 
+    schema = _simplify_const(schema)
     schema = _simplify_if_then_else(schema)
     schema = _simplify_type(schema)
 
@@ -408,15 +431,14 @@ def _to_dnf(schema: dict, full_merge: bool) -> dict:
 
 
 def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full_merge: bool) -> dict:
-
     if schema is False:
-        return NORM_FALSE
+        return NORM_FALSE.copy()
 
     if schema is True:
-        return NORM_TRUE
+        return NORM_TRUE.copy()
 
     if len(schema) == 0:
-        return NORM_TRUE
+        return NORM_TRUE.copy()
 
     # Check cache (to avoid stack overflows due to recursive schemas)
     new_ref_name = hashlib.sha1(json.dumps(schema).encode()).hexdigest()
@@ -426,7 +448,7 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
     # Inline all references (if any)
     (schema, contains_refs) = _inline_refs(schema, resolver)
 
-    result = _to_dnf(schema, resolver)
+    result = _to_dnf(schema, full_merge)
 
     # Store new schema if sub-schemas later try to reference it
     if contains_refs:
@@ -458,10 +480,10 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
 
 def normalize(schema: SchemaType, full_merge: bool = True) -> any:
     if schema is False:
-        return NORM_FALSE
+        return NORM_FALSE.copy()
 
     if schema is True:
-        return NORM_TRUE
+        return NORM_TRUE.copy()
 
     if not isinstance(schema, dict):
         raise NormalizationException(
@@ -504,7 +526,7 @@ def _check_normalized(schema: SchemaType, resolver: Resolver, checked_refs: Set[
     for idx, sub_schema in enumerate(any_of):
 
         # Disallowed keywords in any-of elements
-        for i in ['anyOf', 'allOf', 'oneOf', 'not', 'if', 'then', 'else']:
+        for i in ['anyOf', 'allOf', 'oneOf', 'not', 'if', 'then', 'else', 'const']:
             if i in sub_schema:
                 raise NormalizationException(
                     f"'{i}' not allowed in normalized sub_schema {idx}")

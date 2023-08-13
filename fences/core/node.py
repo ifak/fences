@@ -17,6 +17,8 @@ class Node:
     def __init__(self, id: Optional[str] = None) -> None:
         self.id = id
         self.incoming_transitions: List["IncomingTransition"] = []
+        self._has_valid_successors: False
+        self._has_invalid_successors: False
 
     def apply(self, data: any) -> any:
         """
@@ -62,7 +64,8 @@ class Node:
 
         def insert(node: Node):
             if node.id and node.id in nodes_by_id:
-                raise ResolveReferenceException(f"id '{node.id}' exists multiple times", node.id)
+                raise ResolveReferenceException(
+                    f"id '{node.id}' exists multiple times", node.id)
             nodes_by_id[node.id] = node
         for node in nodes:
             for n in node.items():
@@ -94,18 +97,19 @@ class Node:
         _resolve(root)
         return root
 
-    def execute(self, path: Path, data = None) -> any:
+    def execute(self, path: Path, data=None) -> any:
         """
         Executes a path on the node
         """
         idx, result = self._execute(path, 0, data)
-        if idx != len(path): # pragma: no cover
+        if idx != len(path):  # pragma: no cover
             raise InternalException("Path not fully consumed")
         return result
 
     def _execute(self, path: Path, path_idx: int, data: any) -> Tuple[int, any]:
-        if path_idx > len(path): # pragma: no cover
-            raise InternalException(f"path_idx ({path_idx}) > len(path) ({len(path)})")
+        if path_idx > len(path):  # pragma: no cover
+            raise InternalException(
+                f"path_idx ({path_idx}) > len(path) ({len(path)})")
 
         data = self.apply(data)
 
@@ -115,7 +119,8 @@ class Node:
         if self.all_transitions:
             result = None
             for transition in self.outgoing_transitions:
-                path_idx, result = transition.target._execute(path, path_idx, data)
+                path_idx, result = transition.target._execute(
+                    path, path_idx, data)
             # return the result of the last node
             return path_idx, result
         else:
@@ -127,7 +132,8 @@ class Node:
 
         if isinstance(self, Leaf) and self.is_valid != on_valid_path:
             v = 'valid' if on_valid_path else 'invalid'
-            raise InternalException(f"Decision without {v} leaf detected! {self.description()}")
+            raise InternalException(
+                f"Decision without {v} leaf detected! {self.description()}")
 
         if not isinstance(self, Decision):
             return
@@ -145,14 +151,16 @@ class Node:
             for idx, transition in enumerate(self.outgoing_transitions):
                 target = transition.target
                 if transition._num_paths < min_paths:
-                    if isinstance(target, Leaf):
-                        v = not on_valid_path if transition.is_inverting else on_valid_path
-                        if target.is_valid != v: continue
+                    if on_valid_path and not target._has_valid_successors:
+                        continue
+                    if not on_valid_path and not target._has_invalid_successors:
+                        continue
                     selected = idx
                     min_paths = transition._num_paths
             if selected is None:
                 v = 'valid' if on_valid_path else 'invalid'
-                raise InternalException(f"Decision without {v} leaf detected!")
+                raise InternalException(
+                    f"Decision without {v} leaf detected ' (id={self.id})")
 
             result_path.append(selected)
             transition = self.outgoing_transitions[selected]
@@ -175,21 +183,24 @@ class Node:
                 predecessor_transition = transition
         path.append(predecessor_transition.outgoing_idx)
         predecessor_transition.outgoing_transition()._num_paths += 1
-        is_inverting, root = predecessor_transition.source._backward(path, already_reached)
+        is_inverting, root = predecessor_transition.source._backward(
+            path, already_reached)
         if predecessor_transition.outgoing_transition().is_inverting:
             return not is_inverting, root
         else:
             return is_inverting, root
 
     def _forward(self, backward_path: Path, forward_path: Path, visited: Set, on_valid_path: bool):
-        if len(backward_path) == 0: return
+        if len(backward_path) == 0:
+            return
         assert isinstance(self, Decision)
         path_idx = backward_path.pop(-1)
         if self.all_transitions:
             for idx, transition in enumerate(self.outgoing_transitions):
                 v = not on_valid_path if transition.is_inverting else on_valid_path
                 if idx == path_idx:
-                    transition.target._forward(backward_path, forward_path, visited, v)
+                    transition.target._forward(
+                        backward_path, forward_path, visited, v)
                 else:
                     transition._num_paths += 1
                     transition.target._generate(forward_path, visited, v)
@@ -199,6 +210,24 @@ class Node:
             forward_path.append(path_idx)
             transition._num_paths += 1
             transition.target._forward(backward_path, forward_path, visited, v)
+
+    def _reset_stats(self, visited: Set[str]):
+        if id(self) in visited:
+            return
+        visited.add(id(self))
+
+        if isinstance(self, Leaf):
+            self._has_valid_successors = self.is_valid
+            self._has_invalid_successors = not self.is_valid
+        else:
+            assert isinstance(self, Decision)
+
+            self._has_valid_successors = False
+            self._has_invalid_successors = False
+            for i in self.outgoing_transitions:
+                i.target._reset_stats(visited)
+                self._has_valid_successors = self._has_valid_successors or i.target._has_valid_successors
+                self._has_invalid_successors = self._has_invalid_successors or i.target._has_invalid_successors
 
     def generate_paths(self) -> Generator[ResultEntry, None, None]:
         """
@@ -222,7 +251,11 @@ class Node:
 
         to_visit = valid_nodes + invalid_nodes
 
+        visited = set()
+        self._reset_stats(visited)
+
         while to_visit:
+            # print(f"{len(to_visit)} nodes remaining")
             next = to_visit[0]
 
             # Generate a path to the root
@@ -232,7 +265,7 @@ class Node:
 
             # Follow path to the target node
             forward_path = []
-            root._forward(backward_path, forward_path, visited, True )
+            root._forward(backward_path, forward_path, visited, True)
 
             # Yield
             is_valid = not next.is_valid if is_inverting else next.is_valid
@@ -263,8 +296,9 @@ class Node:
                 return i
         raise KeyError("No such id '{id}'")
 
+
 class Leaf(Node):
-    def __init__(self, id: str, is_valid: bool) -> None:
+    def __init__(self, id: str = None, is_valid: bool = True) -> None:
         super().__init__(id)
         self.is_valid = is_valid
 
@@ -286,7 +320,7 @@ class IncomingTransition:
 
 
 class Decision(Node):
-    def __init__(self, id: str, all_transitions: bool = False) -> None:
+    def __init__(self, id: str = None, all_transitions: bool = False) -> None:
         super().__init__(id)
         self.all_transitions = all_transitions
         self.outgoing_transitions: List[OutgoingTransition] = []
@@ -312,17 +346,22 @@ class Decision(Node):
         self._optimize(visited)
 
     def _optimize(self, visited: Set):
-        if id(self) in visited: return
+        if id(self) in visited:
+            return
         visited.add(id(self))
 
         merge_with = self
         is_inverting = False
         while True:
-            if len(merge_with.outgoing_transitions) != 1: break
+            if len(merge_with.outgoing_transitions) != 1:
+                break
             successor = merge_with.outgoing_transitions[0].target
-            if len(successor.incoming_transitions) != 1: break
-            if not isinstance(successor, NoOpDecision): break
-            if id(successor) in visited: break
+            if len(successor.incoming_transitions) != 1:
+                break
+            if not isinstance(successor, NoOpDecision):
+                break
+            if id(successor) in visited:
+                break
             if merge_with.outgoing_transitions[0].is_inverting:
                 is_inverting = not is_inverting
             merge_with = successor
@@ -342,6 +381,7 @@ class Decision(Node):
             if isinstance(i.target, Decision):
                 i.target._optimize(visited)
 
+
 class Reference(Node):
     def __init__(self, id: str, reference: str) -> None:
         super().__init__(id)
@@ -351,7 +391,8 @@ class Reference(Node):
         try:
             return nodes_by_id[self.reference].target(nodes_by_id)
         except KeyError as e:
-            raise ResolveReferenceException(f"Unknown reference '{self.reference}'", self.reference)
+            raise ResolveReferenceException(
+                f"Unknown reference '{self.reference}'", self.reference)
 
 
 class NoOpDecision(Decision):
@@ -360,6 +401,7 @@ class NoOpDecision(Decision):
 
     def description(self) -> Optional[str]:
         return "(Do nothing)"
+
 
 class NoOpLeaf(Leaf):
     def apply(self, data: any) -> any:

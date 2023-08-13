@@ -1,460 +1,944 @@
-
+$schema: https://json-schema.org/draft/2020-12/schema
 type: object
 allOf:
-  - $ref: '#/definitions/Environment'
-definitions:
+- $ref: '#/$defs/Environment'
+$defs:
+  #### 5.3.11.1 Predefined Simple Data Types
+  StringType:
+    $ref: '#/$defs/Constraint_AASd-130'
+  Constraint_AASd-130:
+    type: string
+    pattern: ^[\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]*$
+  BoolType:
+    type: string
+    enum:
+    - "true"
+    - "false"
+    - "1"
+    - "0"
+  TimeType:
+    type: string
+    pattern: ^(([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?|(24:00:00(\.0+)?))(Z|(\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00))?$
+  DurationType:
+    type: string
+    pattern: ^-?P((([0-9]+Y([0-9]+M)?([0-9]+D)?|([0-9]+M)([0-9]+D)?|([0-9]+D))(T(([0-9]+H)([0-9]+M)?([0-9]+(\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\.[0-9]+)?S)?|([0-9]+(\.[0-9]+)?S)))?)|(T(([0-9]+H)([0-9]+M)?([0-9]+(\.[0-9]+)?S)?|([0-9]+M)([0-9]+(\.[0-9]+)?S)?|([0-9]+(\.[0-9]+)?S))))$
+  DayType:
+    type: string
+    pattern: ^---(0[1-9]|[12][0-9]|3[01])(Z|(\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00))?$
+  MonthType:
+    type: string
+    pattern: ^--(0[1-9]|1[0-2])(Z|(\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00))?$
+  YearType:
+    type: string
+    pattern: ^-?([1-9][0-9]{3,}|0[0-9]{3})(Z|(\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00))?$
+  YearMonthType:
+    type: string
+    pattern: ^-?([1-9][0-9]{3,}|0[0-9]{3})-(0[1-9]|1[0-2])(Z|(\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00))?$
+  HexBinaryType:
+    type: string
+    pattern: ^([0-9a-fA-F][0-9a-fA-F])*$
+  ### 5.3.11.2 Primitive Data Types
+  BlobType:
+    type: string
+    contentEncoding: base64
+  ContentType:
+    type: string
+    allOf:
+    - minLength: 1
+      maxLength: 100
+    - pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+    - pattern: "^([!#$%&'*+\\-.^_`|~0-9a-zA-Z])+/([!#$%&'*+\\-.^_`|~0-9a-zA-Z])+([
+        \\t]*;[ \\t]*([!#$%&'*+\\-.^_`|~0-9a-zA-Z])+=(([!#$%&'*+\\-.^_`|~0-9a-zA-Z])+|\"(([\\t
+        !#-\\[\\]-~]|[\x80-ÿ])|\\\\([\\t !-~]|[\x80-ÿ]))*\"))*$"
+  Identifier:
+    type: string
+    minLength: 1
+    maxLength: 2000
+    pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+  LabelType:
+    type: string
+    minLength: 1
+    maxLength: 64
+    pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+  MessageTopicType:
+    type: string
+    minLength: 1
+    maxLength: 255
+    pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+  NameType:
+    type: string
+    allOf:
+    - minLength: 1
+    - maxLength: 128
+    - pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+    - pattern: "^[a-zA-Z][a-zA-Z0-9_]*$"
+  PathType:
+    type: string
+    allOf:
+    - minLength: 1
+      maxLength: 2000
+    - pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+    - pattern: "^file:(//((localhost|(\\[((([0-9A-Fa-f]{1,4}:){6}([0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|::([0-9A-Fa-f]{1,4}:){5}([0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|([0-9A-Fa-f]{1,4})?::([0-9A-Fa-f]{1,4}:){4}([0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|(([0-9A-Fa-f]{1,4}:)?[0-9A-Fa-f]{1,4})?::([0-9A-Fa-f]{1,4}:){3}([0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|(([0-9A-Fa-f]{1,4}:){2}[0-9A-Fa-f]{1,4})?::([0-9A-Fa-f]{1,4}:){2}([0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|(([0-9A-Fa-f]{1,4}:){3}[0-9A-Fa-f]{1,4})?::[0-9A-Fa-f]{1,4}:([0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|(([0-9A-Fa-f]{1,4}:){4}[0-9A-Fa-f]{1,4})?::([0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{1,4}|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|(([0-9A-Fa-f]{1,4}:){5}[0-9A-Fa-f]{1,4})?::[0-9A-Fa-f]{1,4}|(([0-9A-Fa-f]{1,4}:){6}[0-9A-Fa-f]{1,4})?::)|[vV][0-9A-Fa-f]+\\.([a-zA-Z0-9\\-._~]|[!$&'()*+,;=]|:)+)\\]|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|([a-zA-Z0-9\\-._~]|%[0-9A-Fa-f][0-9A-Fa-f]|[!$&'()*+,;=])*)))?/((([a-zA-Z0-9\\-._~]|%[0-9A-Fa-f][0-9A-Fa-f]|[!$&'()*+,;=]|[:@]))+(/(([a-zA-Z0-9\\-._~]|%[0-9A-Fa-f][0-9A-Fa-f]|[!$&'()*+,;=]|[:@]))*)*)?|/((([a-zA-Z0-9\\-._~]|%[0-9A-Fa-f][0-9A-Fa-f]|[!$&'()*+,;=]|[:@]))+(/(([a-zA-Z0-9\\-._~]|%[0-9A-Fa-f][0-9A-Fa-f]|[!$&'()*+,;=]|[:@]))*)*)?)$"
+  RevisionType:
+    type: string
+    allOf:
+    - minLength: 1
+      maxLength: 4
+    - pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+    - pattern: "^(0|[1-9][0-9]*)$"
+  QualifierType:
+    $ref: "#/$defs/NameType"
+  VersionType:
+    type: string
+    allOf:
+    - minLength: 1
+      maxLength: 4
+    - pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+    - pattern: "^(0|[1-9][0-9]*)$"
+
+  ### 5.3.11.3 Enumeration for Submodel Element Value Types
+  DataTypeDefXsd:
+    type: string
+    enum:
+    - xs:anyURI
+    - xs:base64Binary
+    - xs:boolean
+    - xs:byte
+    - xs:date
+    - xs:dateTime
+    - xs:decimal
+    - xs:double
+    - xs:duration
+    - xs:float
+    - xs:gDay
+    - xs:gMonth
+    - xs:gMonthDay
+    - xs:gYear
+    - xs:gYearMonth
+    - xs:hexBinary
+    - xs:int
+    - xs:integer
+    - xs:long
+    - xs:negativeInteger
+    - xs:nonNegativeInteger
+    - xs:nonPositiveInteger
+    - xs:positiveInteger
+    - xs:short
+    - xs:string
+    - xs:time
+    - xs:unsignedByte
+    - xs:unsignedInt
+    - xs:unsignedLong
+    - xs:unsignedShort
+  ValueWithType:
+    anyOf:
+    - properties:
+        valueType:
+          const: xs:string
+        value:
+          $ref: "#/$defs/StringType"
+    - properties:
+        valueType:
+          const: xs:boolean
+        value:
+          $ref: "#/$defs/BoolType"
+    - properties:
+        valueType:
+          const: xs:decimal
+        value:
+          type: string
+          format: xs:decimal
+    - properties:
+        valueType:
+          const: xs:integer
+        value:
+          type: string
+          format: xs:integer
+
+    - properties:
+        valueType:
+          const: xs:float
+        value:
+          type: string
+          format: xs:float
+    - properties:
+        valueType:
+          const: xs:double
+        value:
+          type: string
+          format: xs:double
+
+    - properties:
+        valueType:
+          const: xs:date
+        value:
+          type: string
+          format: xs:date
+    - properties:
+        valueType:
+          const: xs:dateTime
+        value:
+          type: string
+          format: xs:dateTime
+    - properties:
+        valueType:
+          const: xs:time
+        value:
+          $ref: "#/$defs/TimeType"
+    - properties:
+        valueType:
+          const: xs:duration
+        value:
+          $ref: "#/$defs/DurationType"
+    - properties:
+        valueType:
+          const: xs:gDay
+        value:
+          $ref: "#/$defs/DayType"
+    - properties:
+        valueType:
+          const: xs:gMonth
+        value:
+          $ref: "#/$defs/MonthType"
+    - properties:
+        valueType:
+          const: xs:gMonthDay
+        value:
+          type: string
+          format: xs:gMonthDay
+    - properties:
+        valueType:
+          const: xs:gYear
+        value:
+          $ref: "#/$defs/YearType"
+    - properties:
+        valueType:
+          const: xs:gYearMonth
+        value:
+          $ref: "#/$defs/YearMonthType"
+
+    - properties:
+        valueType:
+          const: xs:byte
+        value:
+          type: string
+          format: xs:byte
+    - properties:
+        valueType:
+          const: xs:short
+        value:
+          type: string
+          format: xs:short
+    - properties:
+        valueType:
+          const: xs:int
+        value:
+          type: string
+          format: xs:int
+    - properties:
+        valueType:
+          const: xs:long
+        value:
+          type: string
+          format: xs:long
+
+    - properties:
+        valueType:
+          const: xs:negativeInteger
+        value:
+          type: string
+          format: xs:negativeInteger
+    - properties:
+        valueType:
+          const: xs:nonNegativeInteger
+        value:
+          type: string
+          format: xs:nonNegativeInteger
+    - properties:
+        valueType:
+          const: xs:nonPositiveInteger
+        value:
+          type: string
+          format: xs:nonPositiveInteger
+    - properties:
+        valueType:
+          const: xs:positiveInteger
+        value:
+          type: string
+          format: xs:positiveInteger
+
+    - properties:
+        valueType:
+          const: xs:unsignedByte
+        value:
+          type: string
+          format: xs:unsignedByte
+    - properties:
+        valueType:
+          const: xs:unsignedInt
+        value:
+          type: string
+          format: xs:unsignedInt
+    - properties:
+        valueType:
+          const: xs:unsignedShort
+        value:
+          type: string
+          format: xs:unsignedShort
+    - properties:
+        valueType:
+          const: xs:unsignedLong
+        value:
+          type: string
+          format: xs:unsignedLong
+  
+    - properties:
+        valueType:
+          const: xs:base64Binary
+        value:
+          type: string
+          format: xs:base64Binary
+    - properties:
+        valueType:
+          const: xs:hexBinary
+        value:
+          $ref: "#/$defs/HexBinaryType"
+    - properties:
+        valueType:
+          const: xs:anyURI
+        value:
+          type: string
+          format: xs:anyURI
+
+  MinMaxWithType:
+    anyOf:
+    - properties:
+        valueType:
+          const: xs:string
+        min: &a0
+          $ref: "#/$defs/StringType"
+        max: *a0
+    - properties:
+        valueType:
+          const: xs:boolean
+        min: &a1
+          $ref: "#/$defs/BoolType"
+        max: *a1
+    - properties:
+        valueType:
+          const: xs:decimal
+        min: &a2
+          type: string
+          format: xs:decimal
+        max: *a2
+    - properties:
+        valueType:
+          const: xs:integer
+        min: &a3
+          type: string
+          format: xs:integer
+        max: *a3
+
+    - properties:
+        valueType:
+          const: xs:float
+        min: &a4
+          type: string
+          format: xs:float
+        max: *a4
+    - properties:
+        valueType:
+          const: xs:double
+        min: &a5
+          type: string
+          format: xs:double
+        max: *a5
+
+    - properties:
+        valueType:
+          const: xs:date
+        min: &a6
+          type: string
+          format: xs:date
+        max: *a6
+    - properties:
+        valueType:
+          const: xs:dateTime
+        min: &a7
+          type: string
+          format: xs:dateTime
+        max: *a7
+    - properties:
+        valueType:
+          const: xs:time
+        min: &a8
+          $ref: "#/$defs/TimeType"
+        max: *a8
+    - properties:
+        valueType:
+          const: xs:duration
+        min: &a9
+          $ref: "#/$defs/DurationType"
+        max: *a9
+    - properties:
+        valueType:
+          const: xs:gDay
+        min: &a10
+          $ref: "#/$defs/DayType"
+        max: *a10
+    - properties:
+        valueType:
+          const: xs:gMonth
+        min: &a11
+          $ref: "#/$defs/MonthType"
+        max: *a11
+    - properties:
+        valueType:
+          const: xs:gMonthDay
+        min: &a12
+          type: string
+          format: xs:gMonthDay
+        max: *a12
+    - properties:
+        valueType:
+          const: xs:gYear
+        min: &a13
+          $ref: "#/$defs/YearType"
+        max: *a13
+    - properties:
+        valueType:
+          const: xs:gYearMonth
+        min: &a14
+          $ref: "#/$defs/YearMonthType"
+        max: *a14
+
+    - properties:
+        valueType:
+          const: xs:byte
+        min: &a15
+          type: string
+          format: xs:byte
+        max: *a15
+    - properties:
+        valueType:
+          const: xs:short
+        min: &a16
+          type: string
+          format: xs:short
+        max: *a16
+    - properties:
+        valueType:
+          const: xs:int
+        min: &a17
+          type: string
+          format: xs:int
+        max: *a17
+    - properties:
+        valueType:
+          const: xs:long
+        min: &a18
+          type: string
+          format: xs:long
+        max: *a18
+
+    - properties:
+        valueType:
+          const: xs:negativeInteger
+        min: &a19
+          type: string
+          format: xs:negativeInteger
+        max: *a19
+    - properties:
+        valueType:
+          const: xs:nonNegativeInteger
+        min: &a20
+          type: string
+          format: xs:nonNegativeInteger
+        max: *a20
+    - properties:
+        valueType:
+          const: xs:nonPositiveInteger
+        min: &a21
+          type: string
+          format: xs:nonPositiveInteger
+        max: *a21
+    - properties:
+        valueType:
+          const: xs:positiveInteger
+        min: &a22
+          type: string
+          format: xs:positiveInteger
+        max: *a22
+
+    - properties:
+        valueType:
+          const: xs:unsignedByte
+        min: &a23
+          type: string
+          format: xs:unsignedByte
+        max: *a23
+    - properties:
+        valueType:
+          const: xs:unsignedInt
+        min: &a24
+          type: string
+          format: xs:unsignedInt
+        max: *a24
+    - properties:
+        valueType:
+          const: xs:unsignedShort
+        min: &a25
+          type: string
+          format: xs:unsignedShort
+        max: *a25
+    - properties:
+        valueType:
+          const: xs:unsignedLong
+        min: &a26
+          type: string
+          format: xs:unsignedLong
+        max: *a26
+  
+    - properties:
+        valueType:
+          const: xs:base64Binary
+        min: &a27
+          type: string
+          format: xs:base64Binary
+        max: *a27
+    - properties:
+        valueType:
+          const: xs:hexBinary
+        min: &a28
+          $ref: "#/$defs/HexBinaryType"
+        max: *a28
+    - properties:
+        valueType:
+          const: xs:anyURI
+        min: &a29
+          type: string
+          format: xs:anyURI
+        max: *a29
+
   AasSubmodelElements:
     type: string
     enum:
-      - AnnotatedRelationshipElement
-      - BasicEventElement
-      - Blob
-      - Capability
-      - DataElement
-      - Entity
-      - EventElement
-      - File
-      - MultiLanguageProperty
-      - Operation
-      - Property
-      - Range
-      - ReferenceElement
-      - RelationshipElement
-      - SubmodelElement
-      - SubmodelElementCollection
-      - SubmodelElementList
-  AdministrativeInformation:
-    allOf:
-      - $ref: '#/definitions/HasDataSpecification'
-      - if:
-          properties:
-            revision:
-              type: string
-              minLength: 1
-          required:
-            - revision
-        then:
-          properties:
-            version:
-              type: string
-              minLength: 1
-          required:
-            - version
-  AnnotatedRelationshipElement:
-    allOf:
-      - $ref: '#/definitions/RelationshipElement'
-      - properties:
-          annotations:
-            type: array
-            items:
-              $ref: '#/definitions/DataElement'
-            minItems: 1
-          modelType:
-            const: AnnotatedRelationshipElement
-        required:
-          - modelType
-  AssetAdministrationShell:
-    allOf:
-      - $ref: '#/definitions/Identifiable'
-      - $ref: '#/definitions/HasDataSpecification'
-      - properties:
-          derivedFrom:
-            $ref: '#/definitions/Reference'
-          assetInformation:
-            $ref: '#/definitions/AssetInformation'
-          submodels:
-            type: array
-            items:
-              $ref: '#/definitions/Reference'
-            minItems: 1
-          modelType:
-            const: AssetAdministrationShell
-        required:
-          - assetInformation
-          - modelType
-  AssetInformation:
+    - AnnotatedRelationshipElement
+    - BasicEventElement
+    - Blob
+    - Capability
+    - DataElement
+    - Entity
+    - EventElement
+    - File
+    - MultiLanguageProperty
+    - Operation
+    - Property
+    - Range
+    - ReferenceElement
+    - RelationshipElement
+    - SubmodelElement
+    - SubmodelElementCollection
+    - SubmodelElementList
+  AbstractLangString:
     type: object
     properties:
-      assetKind:
-        $ref: '#/definitions/AssetKind'
-      globalAssetId:
-        $ref: '#/definitions/Reference'
-      specificAssetIds:
-        type: array
-        items:
-          $ref: '#/definitions/SpecificAssetId'
-        minItems: 1
-      defaultThumbnail:
-        $ref: '#/definitions/Resource'
+      language:
+        type: string
+        pattern: "^(([a-zA-Z]{2,3}(-[a-zA-Z]{3}(-[a-zA-Z]{3}){2})?|[a-zA-Z]{4}|[a-zA-Z]{5,8})(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-(([a-zA-Z0-9]){5,8}|[0-9]([a-zA-Z0-9]){3}))*(-[0-9A-WY-Za-wy-z](-([a-zA-Z0-9]){2,8})+)*(-[xX](-([a-zA-Z0-9]){1,8})+)?|[xX](-([a-zA-Z0-9]){1,8})+|((en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)|(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang)))$"
+      text:
+        type: string
+        minLength: 1
+        pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
     required:
+    - language
+    - text
+  Constraint_AASd-005:
+    dependentRequired:
+      revision: ["version"]
+      version: ["revision"]
+  AdministrativeInformation:
+    allOf:
+    - $ref: "#/$defs/HasDataSpecification"
+    - $ref: "#/$defs/Constraint_AASd-005"
+    - properties:
+        version:
+          $ref: "#/$defs/VersionType"
+        revision:
+          $ref: "#/$defs/RevisionType"
+        creator:
+          $ref: "#/$defs/Reference"
+        templateId:
+          $ref: "#/$defs/Identifier"
+  AnnotatedRelationshipElement:
+    allOf:
+    - $ref: "#/$defs/RelationshipElementBase"
+    - properties:
+        annotations:
+          type: array
+          items:
+            allOf:
+            - $ref: "#/$defs/DataElement_choice"
+            - $ref: "#/$defs/Constraint_AASd-117"
+          minItems: 1
+        modelType:
+          const: AnnotatedRelationshipElement
+  AssetAdministrationShell:
+    allOf:
+    - $ref: "#/$defs/Identifiable"
+    - $ref: "#/$defs/HasDataSpecification"
+    - properties:
+        derivedFrom:
+          $ref: "#/$defs/Reference"
+        assetInformation:
+          $ref: "#/$defs/AssetInformation"
+        submodels:
+          type: array
+          items:
+            $ref: "#/$defs/Reference"
+          minItems: 1
+        modelType:
+          const: AssetAdministrationShell
+      required:
+      - assetInformation
+  Constraint_AASd-131:
+    anyOf:
+      - required:
+          - specificAssetIds
+        not:
+          required:
+            - globalAssetId
+      - required:
+          - globalAssetId
+        not:
+          required:
+            - specificAssetIds
+  Constraint_AASd-116:
+    anyOf:
+    - not:
+        properties:
+          name:
+            const: globalAssetId
+        required:
+        - name
+    - properties:
+        name:
+          const: globalAssetId
+  AssetInformation:
+    allOf:
+    - $ref: "#/$defs/Constraint_AASd-131"
+    - type: object
+      properties:
+        assetKind:
+          $ref: "#/$defs/AssetKind"
+        globalAssetId:
+          $ref: "#/$defs/Identifier"
+        specificAssetIds:
+          type: array
+          items:
+            allOf:
+#            - $ref: "#/$defs/Constraint_AASd-116"
+            - $ref: "#/$defs/SpecificAssetId"
+          minItems: 1
+        assetType:
+          $ref: "#/$defs/Identifier"
+        defaultThumbnail:
+          $ref: "#/$defs/Resource"
+      required:
       - assetKind
   AssetKind:
     type: string
     enum:
-      - Instance
-      - Type
+    - Instance
+    - NotApplicable
+    - Type
   BasicEventElement:
     allOf:
-      - $ref: '#/definitions/EventElement'
-      - properties:
-          observed:
-            $ref: '#/definitions/Reference'
-          direction:
-            $ref: '#/definitions/Direction'
-          state:
-            $ref: '#/definitions/StateOfEvent'
-          messageTopic:
-            type: string
-            minLength: 1
-          messageBroker:
-            $ref: '#/definitions/Reference'
-          lastUpdate:
-            type: string
-            pattern: ^-?(([1-9][0-9][0-9][0-9]+)|(0[0-9][0-9][0-9]))-((0[1-9])|(1[0-2]))-((0[1-9])|([12][0-9])|(3[01]))T(((([01][0-9])|(2[0-3])):[0-5][0-9]:([0-5][0-9])(\.[0-9]+)?)|24:00:00(\.0+)?)Z$
-          minInterval:
-            type: string
-            pattern: ^-?(([1-9][0-9][0-9][0-9]+)|(0[0-9][0-9][0-9]))-((0[1-9])|(1[0-2]))-((0[1-9])|([12][0-9])|(3[01]))T(((([01][0-9])|(2[0-3])):[0-5][0-9]:([0-5][0-9])(\.[0-9]+)?)|24:00:00(\.0+)?)Z$
-          maxInterval:
-            type: string
-            pattern: ^-?(([1-9][0-9][0-9][0-9]+)|(0[0-9][0-9][0-9]))-((0[1-9])|(1[0-2]))-((0[1-9])|([12][0-9])|(3[01]))T(((([01][0-9])|(2[0-3])):[0-5][0-9]:([0-5][0-9])(\.[0-9]+)?)|24:00:00(\.0+)?)Z$
-          modelType:
-            const: BasicEventElement
-        required:
-          - observed
-          - direction
-          - state
-          - modelType
+    - $ref: "#/$defs/EventElement"
+    - properties:
+        observed:
+          $ref: "#/$defs/Reference"
+        direction:
+          $ref: "#/$defs/Direction"
+        state:
+          $ref: "#/$defs/StateOfEvent"
+        messageTopic:
+          $ref: "#/$defs/MessageTopicType"
+        messageBroker:
+          $ref: "#/$defs/Reference"
+        lastUpdate:
+          type: string
+          format: xs:dateTimeUTC
+        minInterval:
+          $ref: "#/$defs/DurationType"
+        maxInterval:
+          $ref: "#/$defs/DurationType"
+        modelType:
+          const: BasicEventElement
+      required:
+      - observed
+      - direction
+      - state
   Blob:
     allOf:
-      - $ref: '#/definitions/DataElement'
-      - properties:
-          value:
-            type: string
-            format: byte
-          contentType:
-            type: string
-            minLength: 1
-            pattern: "[-\\w.]+/[-\\w.]+"
-          modelType:
-            const: Blob
-        required:
-          - contentType
-          - modelType
+    - $ref: "#/$defs/DataElement"
+    - properties:
+        value:
+          $ref: "#/$defs/BlobType"
+        contentType:
+          $ref: "#/$defs/ContentType"
+        modelType:
+          const: Blob
+      required:
+      - contentType
   Capability:
     allOf:
-      - $ref: '#/definitions/SubmodelElement'
-      - properties:
-          modelType:
-            const: Capability
-        required:
-          - modelType
+    - $ref: "#/$defs/SubmodelElement"
+    - properties:
+        modelType:
+          const: Capability
   ConceptDescription:
     allOf:
-      - $ref: '#/definitions/Identifiable'
-      - $ref: '#/definitions/HasDataSpecification'
-      - properties:
-          isCaseOf:
-            type: array
-            items:
-              $ref: '#/definitions/Reference'
-            minItems: 1
-          modelType:
-            const: ConceptDescription
-        required:
-          - modelType
+    - $ref: "#/$defs/Identifiable"
+    - $ref: "#/$defs/HasDataSpecification"
+    - properties:
+        isCaseOf:
+          type: array
+          items:
+            $ref: "#/$defs/Reference"
+          minItems: 1
+        modelType:
+          const: ConceptDescription
+  Constraint_AASd-090:
+    properties:
+      category:
+        type: string
+        enum:
+        - CONSTANT
+        - PARAMETER
+        - VARIABLE
   DataElement:
-    $ref: '#/definitions/SubmodelElement'
-  DataSpecificationIEC61360:
     allOf:
-      - properties:
-          preferredName:
-            type: array
-            items:
-              $ref: '#/definitions/LangString'
-            minItems: 1
-          shortName:
-            type: array
-            items:
-              $ref: '#/definitions/LangString'
-            minItems: 1
-          unit:
-            type: string
-            minLength: 1
-          unitId:
-            $ref: '#/definitions/Reference'
-          sourceOfDefinition:
-            type: string
-            minLength: 1
-          symbol:
-            type: string
-            minLength: 1
-          dataType:
-            $ref: '#/definitions/DataTypeIEC61360'
-          definition:
-            type: array
-            items:
-              $ref: '#/definitions/LangString'
-            minItems: 1
-          valueFormat:
-            type: string
-            minLength: 1
-          valueList:
-            $ref: '#/definitions/ValueList'
-          value:
-            type: string
-          levelType:
-            $ref: '#/definitions/LevelType'
-          modelType:
-            const: DataSpecificationIEC61360
-        required:
-          - preferredName
-          - modelType
-  DataSpecificationPhysicalUnit:
+    - $ref: "#/$defs/SubmodelElement"
+    - $ref: "#/$defs/Constraint_AASd-090"
+  DataElement_choice:
+    anyOf:
+    - $ref: "#/$defs/Blob"
+    - $ref: "#/$defs/File"
+    - $ref: "#/$defs/MultiLanguageProperty"
+    - $ref: "#/$defs/Property"
+    - $ref: "#/$defs/Range"
+    - $ref: "#/$defs/ReferenceElement"
+  DataSpecificationContent:
+    type: object
+    properties:
+      modelType:
+        $ref: "#/$defs/ModelType"
+    required:
+    - modelType
+  DataSpecificationContent_choice:
+    anyOf:
+    - $ref: "#/$defs/DataSpecificationIec61360"
+  DataSpecificationIec61360:
     allOf:
-      - properties:
-          unitName:
-            type: string
-            minLength: 1
-          unitSymbol:
-            type: string
-            minLength: 1
-          definition:
-            type: array
-            items:
-              $ref: '#/definitions/LangString'
-            minItems: 1
-          siNotation:
-            type: string
-            minLength: 1
-          siName:
-            type: string
-            minLength: 1
-          dinNotation:
-            type: string
-            minLength: 1
-          eceName:
-            type: string
-            minLength: 1
-          eceCode:
-            type: string
-            minLength: 1
-          nistName:
-            type: string
-            minLength: 1
-          sourceOfDefinition:
-            type: string
-            minLength: 1
-          conversionFactor:
-            type: string
-            minLength: 1
-          registrationAuthorityId:
-            type: string
-            minLength: 1
-          supplier:
-            type: string
-            minLength: 1
-          modelType:
-            const: DataSpecificationPhysicalUnit
-        required:
-          - unitName
-          - unitSymbol
-          - definition
-          - modelType
-  DataTypeDefXsd:
+    - $ref: "#/$defs/DataSpecificationContent"
+    - properties:
+        preferredName:
+          type: array
+          items:
+            $ref: "#/$defs/LangStringPreferredNameTypeIec61360"
+          minItems: 1
+        shortName:
+          type: array
+          items:
+            $ref: "#/$defs/LangStringShortNameTypeIec61360"
+          minItems: 1
+        unit:
+          type: string
+          minLength: 1
+          pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+        unitId:
+          $ref: "#/$defs/Reference"
+        sourceOfDefinition:
+          type: string
+          minLength: 1
+          pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+        symbol:
+          type: string
+          minLength: 1
+          pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+        dataType:
+          $ref: "#/$defs/DataTypeIec61360"
+        definition:
+          type: array
+          items:
+            $ref: "#/$defs/LangStringDefinitionTypeIec61360"
+          minItems: 1
+        valueFormat:
+          type: string
+          minLength: 1
+          pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+        valueList:
+          $ref: "#/$defs/ValueList"
+        value:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
+        levelType:
+          $ref: "#/$defs/LevelType"
+        modelType:
+          const: DataSpecificationIec61360
+      required:
+      - preferredName
+  DataTypeIec61360:
     type: string
     enum:
-      - xs:NonNegativeInteger
-      - xs:anyURI
-      - xs:base64Binary
-      - xs:boolean
-      - xs:byte
-      - xs:date
-      - xs:dateTime
-      - xs:dateTimeStamp
-      - xs:dayTimeDuration
-      - xs:decimal
-      - xs:double
-      - xs:duration
-      - xs:float
-      - xs:gDay
-      - xs:gMonth
-      - xs:gMonthDay
-      - xs:gYear
-      - xs:gYearMonth
-      - xs:hexBinary
-      - xs:int
-      - xs:integer
-      - xs:long
-      - xs:negativeInteger
-      - xs:nonPositiveInteger
-      - xs:positiveInteger
-      - xs:short
-      - xs:string
-      - xs:time
-      - xs:unsignedByte
-      - xs:unsignedInt
-      - xs:unsignedLong
-      - xs:unsignedShort
-      - xs:yearMonthDuration
-  DataTypeIEC61360:
-    type: string
-    enum:
-      - BLOB
-      - BOOLEAN
-      - DATE
-      - FILE
-      - HTML
-      - INTEGER_COUNT
-      - INTEGER_CURRENCY
-      - INTEGER_MEASURE
-      - IRDI
-      - IRI
-      - RATIONAL
-      - RATIONAL_MEASURE
-      - REAL_COUNT
-      - REAL_CURRENCY
-      - REAL_MEASURE
-      - STRING
-      - STRING_TRANSLATABLE
-      - TIME
-      - TIMESTAMP
+    - BLOB
+    - BOOLEAN
+    - DATE
+    - FILE
+    - HTML
+    - INTEGER_COUNT
+    - INTEGER_CURRENCY
+    - INTEGER_MEASURE
+    - IRDI
+    - IRI
+    - RATIONAL
+    - RATIONAL_MEASURE
+    - REAL_COUNT
+    - REAL_CURRENCY
+    - REAL_MEASURE
+    - STRING
+    - STRING_TRANSLATABLE
+    - TIME
+    - TIMESTAMP
   Direction:
     type: string
     enum:
-      - INPUT
-      - OUTPUT
+    - input
+    - output
   EmbeddedDataSpecification:
     type: object
     properties:
       dataSpecification:
-        $ref: '#/definitions/Reference'
+        $ref: "#/$defs/Reference"
       dataSpecificationContent:
-        oneOf:
-          - $ref: '#/definitions/DataSpecificationPhysicalUnit'
-          - $ref: '#/definitions/DataSpecificationIEC61360'
+        $ref: "#/$defs/DataSpecificationContent_choice"
     required:
-      - dataSpecification
-      - dataSpecificationContent
+    - dataSpecification
+    - dataSpecificationContent
+  Constraint_AASd-014:
+    if:
+      properties:
+        entityType:
+          const: SelfManagedEntity
+      required:
+        - entityType
+    then:
+      anyOf:
+        - required:
+          - globalAssetId
+          not:
+            required:
+            - specificAssetIds
+        - required:
+          - specificAssetIds
+          not:
+            required:
+            - globalAssetId
+    else:
+      not:
+        required:
+        - globalAssetId
+        - specificAssetId
   Entity:
     allOf:
-      - $ref: '#/definitions/SubmodelElement'
-      - properties:
-          statements:
-            type: array
-            items:
-              $ref: '#/definitions/SubmodelElementInstance'
-            minItems: 1
-          modelType:
-            const: Entity
-        required:
-          - modelType
-      - if:
-          properties:
-            entityType:
-              const: SelfManagedEntity
-          required:
-            - entityType
-        then:
-          oneOf:
-          - properties:
-              globalAssetId:
-                $ref: '#/definitions/Reference'
-            required:
-              - globalAssetId
-          - properties:
-              specificAssetId:
-                $ref: '#/definitions/SpecificAssetId'
-            required:
-              - specificAssetId
-        else:
-          properties:
-            entityType:
-              enum:
-                - CoManagedEntity
+    - $ref: "#/$defs/SubmodelElement"
+    - $ref: "#/$defs/Constraint_AASd-014"
+    - properties:
+        statements:
+          type: array
+          items:
+            allOf:
+            - $ref: "#/$defs/SubmodelElement_choice"
+            - $ref: "#/$defs/Constraint_AASd-117"
+          minItems: 1
+        entityType:
+          $ref: "#/$defs/EntityType"
+        globalAssetId:
+          $ref: "#/$defs/Identifier"
+        specificAssetIds:
+          type: array
+          items:
+            $ref: "#/$defs/SpecificAssetId"
+          minItems: 1
+        modelType:
+          const: Entity
+      required:
+      - entityType
+  EntityType:
+    type: string
+    enum:
+    - CoManagedEntity
+    - SelfManagedEntity
   Environment:
     type: object
     properties:
       assetAdministrationShells:
         type: array
         items:
-          $ref: '#/definitions/AssetAdministrationShell'
+          $ref: "#/$defs/AssetAdministrationShell"
         minItems: 1
       submodels:
         type: array
-        items:
-          $ref: '#/definitions/Submodel'
+        # items:
+        #   $ref: "#/$defs/Submodel"
         minItems: 1
       conceptDescriptions:
         type: array
         items:
-          $ref: '#/definitions/ConceptDescription'
+          $ref: "#/$defs/ConceptDescription"
         minItems: 1
   EventElement:
-    $ref: '#/definitions/SubmodelElement'
-  EventPayload:
-    type: object
-    properties:
-      source:
-        $ref: '#/definitions/Reference'
-      sourceSemanticId:
-        $ref: '#/definitions/Reference'
-      observableReference:
-        $ref: '#/definitions/Reference'
-      observableSemanticId:
-        $ref: '#/definitions/Reference'
-      topic:
-        type: string
-        minLength: 1
-      subjectId:
-        $ref: '#/definitions/Reference'
-      timeStamp:
-        type: string
-        pattern: ^-?(([1-9][0-9][0-9][0-9]+)|(0[0-9][0-9][0-9]))-((0[1-9])|(1[0-2]))-((0[1-9])|([12][0-9])|(3[01]))T(((([01][0-9])|(2[0-3])):[0-5][0-9]:([0-5][0-9])(\.[0-9]+)?)|24:00:00(\.0+)?)Z$
-      payload:
-        type: string
-        minLength: 1
-    required:
-      - source
-      - observableReference
-      - timeStamp
+    $ref: "#/$defs/SubmodelElement"
   Extension:
     allOf:
-      - $ref: '#/definitions/HasSemantics'
-      - properties:
-          name:
-            type: string
-            minLength: 1
-          valueType:
-            $ref: '#/definitions/DataTypeDefXsd'
-          value:
-            type: string
-          refersTo:
-            $ref: '#/definitions/Reference'
-        required:
-          - name
+    - $ref: "#/$defs/HasSemantics"
+    - $ref: "#/$defs/ValueWithType"
+    - properties:
+        name:
+          $ref: "#/$defs/NameType"
+        valueType:
+          $ref: "#/$defs/DataTypeDefXsd"
+        value:
+          type: string
+        refersTo:
+          type: array
+          items:
+            $ref: "#/$defs/Reference"
+          minItems: 1
+      required:
+      - name
   File:
     allOf:
-      - $ref: '#/definitions/DataElement'
-      - properties:
-          value:
-            type: string
-            minLength: 1
-          contentType:
-            type: string
-            minLength: 1
-            pattern: "[-\\w.]+/[-\\w.]+"
-          modelType:
-            const: File
-        required:
-          - contentType
-          - modelType
+    - $ref: "#/$defs/DataElement"
+    - properties:
+        value:
+          $ref: "#/$defs/PathType"
+        contentType:
+          $ref: "#/$defs/ContentType"
+        modelType:
+          const: File
+      required:
+      - contentType
   HasDataSpecification:
     type: object
     properties:
       embeddedDataSpecifications:
         type: array
         items:
-          $ref: '#/definitions/EmbeddedDataSpecification'
+          $ref: "#/$defs/EmbeddedDataSpecification"
         minItems: 1
   HasExtensions:
     type: object
@@ -462,397 +946,469 @@ definitions:
       extensions:
         type: array
         items:
-          $ref: '#/definitions/Extension'
+          $ref: "#/$defs/Extension"
         minItems: 1
   HasKind:
     type: object
     properties:
       kind:
-        $ref: '#/definitions/ModelingKind'
+        $ref: "#/$defs/ModellingKind"
+  Constraint_AASd-118:
+    dependentRequired:
+      supplementalSemanticIds: ["semanticId"]
   HasSemantics:
-    if:
+    allOf:
+    - $ref: "#/$defs/Constraint_AASd-118"
+    - type: object
       properties:
         semanticId:
-          $ref: '#/definitions/Reference'
-      required:
-        - semanticId
-    then:
-      properties:
+          $ref: "#/$defs/Reference"
         supplementalSemanticIds:
           type: array
           items:
-            $ref: '#/definitions/Reference'
+            $ref: "#/$defs/Reference"
           minItems: 1
-      required:
-        - supplementalSemanticIds
   Identifiable:
     allOf:
-      - $ref: '#/definitions/Referable'
-      - properties:
-          administration:
-            $ref: '#/definitions/AdministrativeInformation'
-          id:
-            type: string
-            minLength: 1
-        required:
-          - id
+    - $ref: "#/$defs/Referable"
+    - properties:
+        administration:
+          $ref: "#/$defs/AdministrativeInformation"
+        id:
+          $ref: "#/$defs/Identifier"
+      required:
+      - id
   Key:
     type: object
     properties:
       type:
-        $ref: '#/definitions/KeyTypes'
+        $ref: "#/$defs/KeyTypes"
       value:
         type: string
         minLength: 1
+        maxLength: 2000
+        pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
     required:
-      - type
-      - value
+    - type
+    - value
   KeyTypes:
     type: string
     enum:
-      - AnnotatedRelationshipElement
-      - AssetAdministrationShell
-      - BasicEventElement
-      - Blob
-      - Capability
-      - ConceptDescription
-      - DataElement
-      - Entity
-      - EventElement
-      - File
-      - FragmentReference
-      - GlobalReference
-      - Identifiable
-      - MultiLanguageProperty
-      - Operation
-      - Property
-      - Range
-      - Referable
-      - ReferenceElement
-      - RelationshipElement
-      - Submodel
-      - SubmodelElement
-      - SubmodelElementCollection
-      - SubmodelElementList
-  LangString:
+    - AnnotatedRelationshipElement
+    - AssetAdministrationShell
+    - BasicEventElement
+    - Blob
+    - Capability
+    - ConceptDescription
+    - DataElement
+    - Entity
+    - EventElement
+    - File
+    - FragmentReference
+    - GlobalReference
+    - Identifiable
+    - MultiLanguageProperty
+    - Operation
+    - Property
+    - Range
+    - Referable
+    - ReferenceElement
+    - RelationshipElement
+    - Submodel
+    - SubmodelElement
+    - SubmodelElementCollection
+    - SubmodelElementList
+  LangStringDefinitionTypeIec61360:
+    allOf:
+    - $ref: "#/$defs/AbstractLangString"
+    - properties:
+        text:
+          type: string
+          maxLength: 1023
+  LangStringNameType:
+    allOf:
+    - $ref: "#/$defs/AbstractLangString"
+    - properties:
+        text:
+          type: string
+          maxLength: 128
+  LangStringPreferredNameTypeIec61360:
+    allOf:
+    - $ref: "#/$defs/AbstractLangString"
+    - properties:
+        text:
+          type: string
+          maxLength: 255
+  LangStringShortNameTypeIec61360:
+    allOf:
+    - $ref: "#/$defs/AbstractLangString"
+    - properties:
+        text:
+          type: string
+          maxLength: 18
+  LangStringTextType:
+    allOf:
+    - $ref: "#/$defs/AbstractLangString"
+    - properties:
+        text:
+          type: string
+          maxLength: 1023
+  LevelType:
     type: object
     properties:
-      language:
-        type: string
-        pattern: ^(([a-zA-Z]{2,3}(-[a-zA-Z]{3}(-[a-zA-Z]{3}){2})?|[a-zA-Z]{4}|[a-zA-Z]{5,8})(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?(-(([a-zA-Z0-9]){5,8}|[0-9]([a-zA-Z0-9]){3}))*(-[0-9A-WY-Za-wy-z](-([a-zA-Z0-9]){2,8})+)*(-[xX](-([a-zA-Z0-9]){1,8})+)?|[xX](-([a-zA-Z0-9]){1,8})+|((en-GB-oed|i-ami|i-bnn|i-default|i-enochian|i-hak|i-klingon|i-lux|i-mingo|i-navajo|i-pwn|i-tao|i-tay|i-tsu|sgn-BE-FR|sgn-BE-NL|sgn-CH-DE)|(art-lojban|cel-gaulish|no-bok|no-nyn|zh-guoyu|zh-hakka|zh-min|zh-min-nan|zh-xiang)))$
-      text:
-        type: string
+      min:
+        type: boolean
+      nom:
+        type: boolean
+      typ:
+        type: boolean
+      max:
+        type: boolean
     required:
-      - language
-      - text
-  LevelType:
+    - min
+    - nom
+    - typ
+    - max
+  ModelType:
     type: string
     enum:
-      - Max
-      - Min
-      - Nom
-      - Typ
-  ModelingKind:
+    - AnnotatedRelationshipElement
+    - AssetAdministrationShell
+    - BasicEventElement
+    - Blob
+    - Capability
+    - ConceptDescription
+    - DataSpecificationIec61360
+    - Entity
+    - File
+    - MultiLanguageProperty
+    - Operation
+    - Property
+    - Range
+    - ReferenceElement
+    - RelationshipElement
+    - Submodel
+    - SubmodelElementCollection
+    - SubmodelElementList
+  ModellingKind:
     type: string
     enum:
-      - Instance
-      - Template
+    - Instance
+    - Template
   MultiLanguageProperty:
     allOf:
-      - $ref: '#/definitions/DataElement'
-      - properties:
-          value:
-            type: array
-            items:
-              $ref: '#/definitions/LangString'
-            minItems: 1
-          valueId:
-            $ref: '#/definitions/Reference'
-          modelType:
-            const: MultiLanguageProperty
-        required:
-          - modelType
+    - $ref: "#/$defs/DataElement"
+    - properties:
+        value:
+          type: array
+          items:
+            $ref: "#/$defs/LangStringTextType"
+          minItems: 1
+        valueId:
+          $ref: "#/$defs/Reference"
+        modelType:
+          const: MultiLanguageProperty
   Operation:
     allOf:
-      - $ref: '#/definitions/SubmodelElement'
-      - properties:
-          inputVariables:
-            type: array
-            items:
-              $ref: '#/definitions/OperationVariable'
-            minItems: 1
-          outputVariables:
-            type: array
-            items:
-              $ref: '#/definitions/OperationVariable'
-            minItems: 1
-          inoutputVariables:
-            type: array
-            items:
-              $ref: '#/definitions/OperationVariable'
-            minItems: 1
-          modelType:
-            const: Operation
-        required:
-          - modelType
+    - $ref: "#/$defs/SubmodelElement"
+    - properties:
+        inputVariables:
+          type: array
+          items:
+            $ref: "#/$defs/OperationVariable"
+          minItems: 1
+        outputVariables:
+          type: array
+          items:
+            $ref: "#/$defs/OperationVariable"
+          minItems: 1
+        inoutputVariables:
+          type: array
+          items:
+            $ref: "#/$defs/OperationVariable"
+          minItems: 1
+        modelType:
+          const: Operation
   OperationVariable:
     type: object
     properties:
       value:
-        $ref: '#/definitions/SubmodelElement'
+        allOf:
+        - $ref: "#/$defs/SubmodelElement_choice"
+        - $ref: "#/$defs/Constraint_AASd-117"
     required:
-      - value
+    - value
   Property:
     allOf:
-      - $ref: '#/definitions/DataElement'
-      - properties:
-          valueType:
-            $ref: '#/definitions/DataTypeDefXsd'
-          value:
-            type: string
-          valueId:
-            $ref: '#/definitions/Reference'
-          modelType:
-            const: Property
-        required:
-          - valueType
-          - modelType
+    - $ref: "#/$defs/DataElement"
+    - $ref: "#/$defs/ValueWithType"
+    - properties:
+        valueType:
+          $ref: "#/$defs/DataTypeDefXsd"
+        value:
+          type: string
+        valueId:
+          $ref: "#/$defs/Reference"
+        modelType:
+          const: Property
+      required:
+      - valueType
   Qualifiable:
     type: object
     properties:
       qualifiers:
         type: array
         items:
-          $ref: '#/definitions/Qualifier'
+          $ref: "#/$defs/Qualifier"
         minItems: 1
+      modelType:
+        $ref: "#/$defs/ModelType"
+    required:
+    - modelType
   Qualifier:
     allOf:
-      - $ref: '#/definitions/HasSemantics'
-      - properties:
-          kind:
-            $ref: '#/definitions/QualifierKind'
-          type:
-            type: string
-            minLength: 1
-          valueType:
-            $ref: '#/definitions/DataTypeDefXsd'
-          value:
-            type: string
-          valueId:
-            $ref: '#/definitions/Reference'
-        required:
-          - type
-          - valueType
+    - $ref: "#/$defs/HasSemantics"
+    - $ref: "#/$defs/ValueWithType"
+    - properties:
+        kind:
+          $ref: "#/$defs/QualifierKind"
+        type:
+          $ref: "#/$defs/QualifierType"
+        valueType:
+          $ref: "#/$defs/DataTypeDefXsd"
+        value:
+          type: string
+        valueId:
+          $ref: "#/$defs/Reference"
+      required:
+      - type
+      - valueType
   QualifierKind:
     type: string
     enum:
-      - ConceptQualifier
-      - TemplateQualifier
-      - ValueQualifier
+    - ConceptQualifier
+    - TemplateQualifier
+    - ValueQualifier
   Range:
     allOf:
-      - $ref: '#/definitions/DataElement'
-      - properties:
-          valueType:
-            $ref: '#/definitions/DataTypeDefXsd'
-          min:
-            type: string
-          max:
-            type: string
-          modelType:
-            const: Range
-        required:
-          - modelType
-          - valueType
+    - $ref: "#/$defs/DataElement"
+    - $ref: "#/$defs/MinMaxWithType"
+    - properties:
+        valueType:
+          $ref: "#/$defs/DataTypeDefXsd"
+        min:
+          type: string
+        max:
+          type: string
+        modelType:
+          const: Range
+      required:
+      - valueType
+  Constraint_AASd-002:
+    $ref: '#/$defs/NameType'
   Referable:
     allOf:
-      - $ref: '#/definitions/HasExtensions'
-      - properties:
-          category:
-            type: string
-            minLength: 1
-          idShort:
-            type: string
-            maxLength: 128
-            pattern: ^[a-zA-Z][a-zA-Z0-9_]+$
-          displayName:
-            type: array
-            items:
-              $ref: '#/definitions/LangString'
-            minItems: 1
-          description:
-            type: array
-            items:
-              $ref: '#/definitions/LangString'
-            minItems: 1
-          checksum:
-            type: string
-            minLength: 1
-  ReferenceParent:
-  # This class is introduced because of the recursion issue of SwaggerUi (see https://github.com/swagger-api/swagger-ui/issues/3325)
+    - $ref: "#/$defs/HasExtensions"
+    - properties:
+        category:
+          deprecated: True
+          $ref: '#/$defs/NameType'
+        idShort:
+          $ref: '#/$defs/Constraint_AASd-002'
+        displayName:
+          type: array
+          items:
+            $ref: "#/$defs/LangStringNameType"
+          minItems: 1
+        description:
+          type: array
+          items:
+            $ref: "#/$defs/LangStringTextType"
+          minItems: 1
+        modelType:
+          $ref: "#/$defs/ModelType"
+      required:
+      - modelType
+  Reference:
+    type: object
     properties:
       type:
-        "$ref": "#/definitions/ReferenceTypes"
+        $ref: "#/$defs/ReferenceTypes"
+      referredSemanticId:
+        $ref: "#/$defs/Reference"
       keys:
         type: array
         items:
-          "$ref": "#/definitions/Key"
+          $ref: "#/$defs/Key"
         minItems: 1
     required:
-      - type
-      - keys
-  Reference:
-    allOf:
-      - "$ref": "#/definitions/ReferenceParent"
+    - type
+    - keys
   ReferenceElement:
     allOf:
-      - $ref: '#/definitions/DataElement'
-      - properties:
-          value:
-            $ref: '#/definitions/Reference'
-          modelType:
-            const: ReferenceElement
-        required:
-          - modelType
+    - $ref: "#/$defs/DataElement"
+    - properties:
+        value:
+          $ref: "#/$defs/Reference"
+        modelType:
+          const: ReferenceElement
   ReferenceTypes:
     type: string
     enum:
-      - GlobalReference
-      - ModelReference
+    - ExternalReference
+    - ModelReference
+  # Need to introduce Base class here because of conflicting model type
+  RelationshipElementBase:
+    allOf:
+    - $ref: "#/$defs/SubmodelElement"
+    - properties:
+        first:
+          $ref: "#/$defs/Reference"
+        second:
+          $ref: "#/$defs/Reference"
+      required:
+      - first
+      - second
   RelationshipElement:
     allOf:
-      - $ref: '#/definitions/SubmodelElement'
-      - properties:
-          first:
-            $ref: '#/definitions/Reference'
-          second:
-            $ref: '#/definitions/Reference'
-          modelType:
-            const: RelationshipElement
-        required:
-          - first
-          - second
-          - modelType
+    - $ref: "#/$defs/RelationshipElementBase"
+    - properties:
+        modelType:
+          const: RelationshipElement
+
+  RelationshipElement_choice:
+    anyOf:
+    - $ref: "#/$defs/RelationshipElement"
+    - $ref: "#/$defs/AnnotatedRelationshipElement"
   Resource:
     type: object
     properties:
       path:
-        type: string
-        minLength: 1
+        $ref: "#/$defs/PathType"
       contentType:
-        type: string
-        minLength: 1
-        pattern: "[-\\w.]+/[-\\w.]+"
+        $ref: "#/$defs/ContentType"
     required:
-      - path
+    - path
+  Constraint_AASd-133:
+    properties:
+      externalSubjectId:
+        const: ExternalReference
   SpecificAssetId:
     allOf:
-      - $ref: '#/definitions/HasSemantics'
-      - properties:
-          name:
-            type: string
-            minLength: 1
-          value:
-            type: string
-            minLength: 1
-          externalSubjectId:
-            $ref: '#/definitions/Reference'
-        required:
-          - name
-          - value
-          - externalSubjectId
+    - $ref: "#/$defs/HasSemantics"
+    - $ref: "#/$defs/Constraint_AASd-133"
+    - properties:
+        name:
+          $ref: "#/$defs/LabelType"
+        value:
+          $ref: "#/$defs/Identifier"
+        externalSubjectId:
+          $ref: "#/$defs/Reference"
+      required:
+      - name
+      - value
   StateOfEvent:
     type: string
     enum:
-      - 'OFF'
-      - 'ON'
+    - 'off'
+    - 'on'
   Submodel:
     allOf:
-      - $ref: '#/definitions/Identifiable'
-      - $ref: '#/definitions/HasKind'
-      - $ref: '#/definitions/HasSemantics'
-      - $ref: '#/definitions/Qualifiable'
-      - $ref: '#/definitions/HasDataSpecification'
-      - properties:
-          submodelElements:
-            type: array
-            items:
-              $ref: '#/definitions/SubmodelElementInstance'
-            minItems: 1
-          modelType:
-            const: Submodel
-        required:
-          - modelType
-  SubmodelElementInstance:
-    oneOf:
-      - $ref: '#/definitions/Capability'
-      - $ref: '#/definitions/DataElement'
-      - $ref: '#/definitions/Entity'
-      - $ref: '#/definitions/EventElement'
-      - $ref: '#/definitions/Operation'
-      - $ref: '#/definitions/OperationVariable'
-      - $ref: '#/definitions/RelationshipElement'
-      - $ref: '#/definitions/SubmodelElementCollection'
-      - $ref: '#/definitions/SubmodelElementList'
+    - $ref: "#/$defs/Identifiable"
+    - $ref: "#/$defs/HasKind"
+    - $ref: "#/$defs/HasSemantics"
+    - $ref: "#/$defs/Qualifiable"
+    - $ref: "#/$defs/HasDataSpecification"
+    - properties:
+        submodelElements:
+          type: array
+          items:
+            allOf:
+            - $ref: "#/$defs/SubmodelElement_choice"
+            - $ref: "#/$defs/Constraint_AASd-117"
+          minItems: 1
+        modelType:
+          const: Submodel
   SubmodelElement:
     allOf:
-      - $ref: '#/definitions/Referable'
-      - $ref: '#/definitions/HasKind'
-      - $ref: '#/definitions/HasSemantics'
-      - $ref: '#/definitions/Qualifiable'
-      - $ref: '#/definitions/HasDataSpecification'
+    - $ref: "#/$defs/Referable"
+    - $ref: "#/$defs/HasSemantics"
+    - $ref: "#/$defs/Qualifiable"
+    - $ref: "#/$defs/HasDataSpecification"
+  Constraint_AASd-117:
+    required:
+    - idShort
   SubmodelElementCollection:
     allOf:
-      - $ref: '#/definitions/SubmodelElement'
-      - properties:
-          value:
-            type: array
-            items:
-              $ref: '#/definitions/SubmodelElementInstance'
-            minItems: 1
-          modelType:
-            const: SubmodelElementCollection
-        required:
-          - modelType
+    - $ref: "#/$defs/SubmodelElement"
+    - properties:
+        value:
+          type: array
+          items:
+            allOf:
+            - $ref: "#/$defs/SubmodelElement_choice"
+            - $ref: "#/$defs/Constraint_AASd-117"
+          minItems: 1
+        modelType:
+          const: SubmodelElementCollection
+  Constraint_AASd-120:
+    not:
+      required:
+        - idShort
   SubmodelElementList:
     allOf:
-      - $ref: '#/definitions/SubmodelElement'
-      - properties:
-          orderRelevant:
-            type: boolean
-          value:
-            type: array
-            items:
-              $ref: '#/definitions/SubmodelElementInstance'
-            minItems: 1
-          semanticIdListElement:
-            $ref: '#/definitions/Reference'
-          typeValueListElement:
-            $ref: '#/definitions/AasSubmodelElements'
-          valueTypeListElement:
-            $ref: '#/definitions/DataTypeDefXsd'
-          modelType:
-            const: SubmodelElementList
-        required:
-          - typeValueListElement
-          - modelType
+    - $ref: "#/$defs/SubmodelElement"
+    - properties:
+        orderRelevant:
+          type: boolean
+        semanticIdListElement:
+          $ref: "#/$defs/Reference"
+        typeValueListElement:
+          $ref: "#/$defs/AasSubmodelElements"
+        valueTypeListElement:
+          $ref: "#/$defs/DataTypeDefXsd"
+        value:
+          type: array
+          items:
+            allOf:
+            - $ref: "#/$defs/SubmodelElement_choice"
+            - $ref: "#/$defs/Constraint_AASd-120"
+          minItems: 1
+        modelType:
+          const: SubmodelElementList
+      required:
+      - typeValueListElement
+  SubmodelElement_choice:
+    anyOf:
+    - $ref: "#/$defs/DataElement_choice"
+    - $ref: "#/$defs/RelationshipElement_choice"
+    - $ref: "#/$defs/BasicEventElement"
+    - $ref: "#/$defs/Capability"
+    - $ref: "#/$defs/Entity"
+    - $ref: "#/$defs/Operation"
+    - $ref: "#/$defs/Property"
+    - $ref: "#/$defs/SubmodelElementCollection"
+    - $ref: "#/$defs/SubmodelElementList"
   ValueList:
     type: object
     properties:
       valueReferencePairs:
         type: array
         items:
-          $ref: '#/definitions/ValueReferencePair'
+          $ref: "#/$defs/ValueReferencePair"
         minItems: 1
     required:
-      - valueReferencePairs
+    - valueReferencePairs
   ValueReferencePair:
     type: object
     properties:
       value:
         type: string
+        minLength: 1
+        maxLength: 2000
+        pattern: "^([\\t\\n\\r -퟿-�]|\\ud800[\\udc00-\\udfff]|[\\ud801-\\udbfe][\\udc00-\\udfff]|\\udbff[\\udc00-\\udfff])*$"
       valueId:
-        $ref: '#/definitions/Reference'
+        $ref: "#/$defs/Reference"
     required:
-      - value
-      - valueId
+    - value
+    - valueId

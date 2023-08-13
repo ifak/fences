@@ -171,7 +171,7 @@ class JsonSchemaTestSuite(TestCase):
                 # Ignore this sample, try next one
                 continue
             if output:
-                print("Is valid" if valid_by_orig else "invalid")
+                print("Is valid" if valid_by_orig else "is invalid")
                 print(yaml.safe_dump(test_case['data'], indent=4))
 
             if valid_by_norm != valid_by_def:
@@ -183,46 +183,3 @@ class JsonSchemaTestSuite(TestCase):
 
         # success!
         stats.num_succeeded += 1
-
-    def DISABLED_test_aas(self):
-        path = os.path.join(
-            script_dir, '../../examples/asset_administration_shell/aas.yaml')
-        with open(path) as f:
-            schema = yaml.safe_load(f)
-        print(f"NUM KEYS: {count_keys(schema)}")
-        counts = {}
-        key_counts(schema, counts)
-        counts = sorted([(value, key) for key, value in counts.items()])
-        for count, key in counts:
-            print(f"{count}: {key}")
-        print(f"ALL KEYS: {counts}")
-        schema = normalize(schema, False)
-        yaml.Dumper.ignore_aliases = lambda *args: True
-        with open(path + ".yml", "w") as f:
-            yaml.dump(schema, f)
-        check_normalized(schema)
-
-
-def count_keys(schema: any) -> int:
-    num_keys = 0
-    if isinstance(schema, dict):
-        for value in schema.values():
-            num_keys += 1
-            num_keys += count_keys(value)
-    elif isinstance(schema, list):
-        for value in schema:
-            num_keys += count_keys(value)
-    return num_keys
-
-
-def key_counts(schema: any, counts: dict):
-    if isinstance(schema, dict):
-        for key, value in schema.items():
-            if key in counts:
-                counts[key] += 1
-            else:
-                counts[key] = 1
-            key_counts(value, counts)
-    elif isinstance(schema, list):
-        for value in schema:
-            key_counts(value, counts)

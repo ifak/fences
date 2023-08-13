@@ -5,6 +5,8 @@ import unittest
 import yaml
 import os
 import json
+from fences.core.render import render
+from fences.json_schema.normlaize import normalize
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -12,8 +14,17 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 class TestGenerate(unittest.TestCase):
 
     def check(self, schema, debug=False):
+        if debug:
+            print("Input schema:")
+            print(yaml.safe_dump(schema))
+        schema = normalize(schema)
+        schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'
         graph = parse.parse(schema)
         check_consistency(graph)
+        if debug:
+            print("Normalized schema:")
+            print(yaml.safe_dump(schema))
+            render(graph).write_svg('graph.svg')
         for i in graph.generate_paths():
             sample = graph.execute(i.path)
             if debug:
@@ -25,8 +36,12 @@ class TestGenerate(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     validate(instance=sample, schema=schema)
 
+    def test_empty(self):
+        self.check({})
+
     def test_simple(self):
         schema = {
+            "type": "object",
             "properties": {
                 "x": {
                     "type": "string"
@@ -53,9 +68,9 @@ class TestGenerate(unittest.TestCase):
                     }
                 },
             },
-            "definitions": {
+            "$defs": {
                 "mydef": {
-                    "$ref": "#/definitions/foo"
+                    "$ref": "#/$defs/foo"
                 },
                 "foo": {
                     "properties": {
@@ -97,7 +112,7 @@ class TestGenerate(unittest.TestCase):
                                             "specificAssetIds": {
                                                 "type": "array",
                                                 "items": {
-                                                    "$ref": "#/definitions/SpecificAssetId"
+                                                    "$ref": "#/$defs/SpecificAssetId"
                                                 },
                                                 "minItems": 1
                                             }
@@ -113,7 +128,7 @@ class TestGenerate(unittest.TestCase):
                     }
                 }
             ],
-            "definitions": {
+            "$defs": {
                 "SpecificAssetId": {
                     "allOf": [
                         {
@@ -167,15 +182,11 @@ class TestGenerate(unittest.TestCase):
                 }
             }
         }
-
-        graph = parse.parse(schema)
-        for i in graph.generate_paths():
-            graph.execute(i.path)
-        # TODO: currently fails
-        # self.check(schema)
+        self.check(schema)
 
     def test_const(self):
         schema = {
+            "type": "object",
             "properties": {
                 "country": {
                     "const": "United States of America"
@@ -184,13 +195,17 @@ class TestGenerate(unittest.TestCase):
         }
         self.check(schema)
 
+    def test_boolean(self):
+        schema = {'allOf': [ True, True]}
+        self.check(schema)
+
     def test_all_of_objects(self):
         schema = {
             "allOf": [
-                { "$ref": "#/definitions/test" },
-                { "$ref": "#/definitions/test2" },
+                { "$ref": "#/$defs/test" },
+                { "$ref": "#/$defs/test2" },
             ],
-            "definitions": {
+            "$defs": {
                 "test": {
                     "properties": {
                         "abc": { "type": "string" }
@@ -213,11 +228,11 @@ class TestGenerate(unittest.TestCase):
             "items": 
             {
                 "allOf": [
-                    { "$ref": "#/definitions/test" },
-                    { "$ref": "#/definitions/test2" },
+                    { "$ref": "#/$defs/test" },
+                    { "$ref": "#/$defs/test2" },
                 ]
             },
-            "definitions": {
+            "$defs": {
                 "test": {
                     "properties": {
                         "abc": { "type": "string" }
@@ -234,7 +249,31 @@ class TestGenerate(unittest.TestCase):
         }
         self.check(schema)
 
-    def test_if(self):
+    def DISABLED_test_only_invalid_leafs(self):
+        schema = {
+            "type": "object",
+            "anyOf": [{
+                "properties": {
+                    "a": {
+                        "type": "object",
+                        "properties": {
+                            "b": False
+                        },
+                        "required": ["b"]
+                    },
+                },
+                "required": ["a"]
+            }, {
+                "type": "object",
+                "properties": {
+                    "c": {"type": "string"}
+                }
+            }]
+        }
+        self.check(schema, True)
+
+    def DISABLED_test_if(self):
+        # Disabled due to a jsonschema bug
         schema = {
             "if": {
                 "properties": {
@@ -248,14 +287,24 @@ class TestGenerate(unittest.TestCase):
             },
             "else": {
                 "properties": {
-                    "c": { "const": "z" }
+                    "b": { "const": "z" }
                 }
             }
         }
-        # self.check(schema)
+        self.check(schema)
 
     def test_aas(self):
         with open(os.path.join(SCRIPT_DIR, '..', '..', 'examples', 'asset_administration_shell', 'aas.yaml')) as file:
             schema = yaml.safe_load(file)
-        # TODO: fails because jsonschema crashes
-        # self.check(schema)
+        schema = normalize(schema, False)
+        # yaml.SafeDumper.ignore_aliases = lambda *args: True
+        # with open("aas_norm.yml", "w") as f:
+        #     yaml.safe_dump(schema, f)
+        schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'
+        graph = parse.parse(schema)
+        check_consistency(graph)
+        num_samples = 0
+        for i in graph.generate_paths():
+            sample = graph.execute(i.path)
+            num_samples += 1
+        print(f"Generated {num_samples} samples")
