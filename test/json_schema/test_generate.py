@@ -6,7 +6,7 @@ import yaml
 import os
 import json
 from fences.core.render import render
-from fences.json_schema.normlaize import normalize
+from fences.json_schema.normalize import normalize
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 

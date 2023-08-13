@@ -4,7 +4,7 @@ import json
 
 from unittest import TestCase
 from jsonschema import validate, exceptions, validators, _utils
-from fences.json_schema.normlaize import normalize, check_normalized
+from fences.json_schema.normalize import normalize, check_normalized
 from fences.core.exception import JsonPointerException, NormalizationException
 from fences import parse_json_schema
 from fences.json_schema.exceptions import JsonSchemaException

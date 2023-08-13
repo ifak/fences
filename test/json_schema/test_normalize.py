@@ -1,6 +1,6 @@
 from unittest import TestCase
 from jsonschema import validators
-from fences.json_schema.normlaize import normalize, check_normalized
+from fences.json_schema.normalize import normalize, check_normalized
 from fences.core.exception import NormalizationException
 
 import yaml
