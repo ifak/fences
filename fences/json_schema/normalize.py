@@ -102,6 +102,12 @@ def _merge_type(a: Union[List[str], str], b: Union[List[str], str]) -> List[str]
         b = [b]
     return list(set(a) & set(b))
 
+def _merge_enums(a: List[any], b: List[any]) -> List[any]:
+    # TODO: we assume string lists, we is not generic
+    a = set(a)
+    b = set(b)
+    return list(a & b)
+
 
 _simple_mergers = {
     'required': lambda a, b: list(set(a) | set(b)),
@@ -115,13 +121,11 @@ _simple_mergers = {
     'pattern': lambda a, b: f"({a})&({b})",
     'minLength': lambda a, b: max(a, b),
     'maxLength': lambda a, b: min(a, b),
-    'const': lambda a, b: a,  # todo
     'enum': lambda a, b: a + b,
     'format': lambda a, b: a,  # todo
-    'dependentRequired': lambda a, b: a,  # todo
     'deprecated': lambda a, b: a or b,
     'NOT_enum': lambda a, b: a + b,
-    'enum': lambda a, b: a + b,
+    'enum': _merge_enums,
 }
 
 
@@ -132,6 +136,7 @@ def _merge_properties(result: dict, to_add: dict) -> dict:
     # Result:   a: 1a+2n, b: 1b+2b, c: 2c+1n, ...: 1n+2n
 
     props_result = result.get('properties', {})
+    props_result = copy.deepcopy(props_result) # TODO: why?
     props_to_add = to_add.get('properties', {})
     additional_result = result.get('additionalProperties')
     additional_to_add = to_add.get('additionalProperties')
@@ -333,6 +338,37 @@ def _simplify_const(schema: dict) -> dict:
         schema['enum'] = [const]
     return schema
 
+def _simplify_dependent_required(schema: dict) -> dict:
+    if 'dependentRequired' not in schema:
+        return schema
+    # dependentRequired:
+    #   a: ["b"]
+    #
+    # a exists | b exists | valid
+    # no       | no       | yes
+    # yes      | no       | no
+    # no       | yes      | yes
+    # yes      | yes      | yes
+    # 
+    # anyOf:
+    # - { "properties": {"a": False, "b": True }, "required": [] }
+    # - { "properties": {"a": True,  "b": True }, "required": ["a", "b"]}
+
+    schema = schema.copy()
+    dependent_required = schema.pop('dependentRequired')
+    options = []
+    for property, requires in dependent_required.items():
+        props1 = {name: True for name in requires}
+        props1[property] = False
+
+        props2 = {name: True for name in requires}
+        props2[property] = True
+        options.append({"anyOf": [
+            {"properties": props1},
+            {"properties": props2, "required": requires + [property]}
+        ]})
+    return {"allOf": [schema] + options }
+
 def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
     if schema is False:
         return NORM_FALSE.copy(), False
@@ -378,6 +414,7 @@ def _to_dnf(schema: dict, full_merge: bool) -> dict:
     schema = _simplify_const(schema)
     schema = _simplify_if_then_else(schema)
     schema = _simplify_type(schema)
+    schema = _simplify_dependent_required(schema)
 
     # anyOf
     if 'anyOf' in schema:
@@ -488,7 +525,9 @@ def normalize(schema: SchemaType, full_merge: bool = True) -> any:
     if not isinstance(schema, dict):
         raise NormalizationException(
             f"Schema must be of type bool or dict, got {type(schema)}")
-    new_schema = schema.copy()
+
+    # TODO: deepcopy really needed?
+    new_schema = copy.deepcopy(schema)
     for kw in ['$schema', '$defs']:
         if kw in schema:
             del new_schema[kw]

@@ -44,20 +44,24 @@ class RaisingResolver(validators.RefResolver):
     def resolve_remote(self, uri):
         raise RasingResolverException()
 
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 
-def invert(validator):
+def invert(orig_validator):
     """
     Returns a validator with inverted semantic
     """
     def impl(validator, local_schema, instance, schema):
-        if validator.evolve(schema=local_schema).is_valid(instance):
-            message = f"{instance!r} should not be valid under {local_schema!r}"
-            yield exceptions.ValidationError(message)
+        try:
+            orig_validator(validator, local_schema, instance, schema)
+        except exceptions.ValidationError:
+            return
+        yield exceptions.ValidationError(f"Should be rejected")
     return impl
 
-def validated_type(validator, types, instance, schema):
+
+def validate_type(validator, types, instance, schema):
     """
     A type validator which is able to handle empty type list
     For the original types validator, the following schema accepts everything
@@ -67,10 +71,11 @@ def validated_type(validator, types, instance, schema):
     if not isinstance(types, list):
         types = [types]
     if not types:
-        yield exceptions.ValidationError(f"{instance!r} is alway invalid")
+        yield exceptions.ValidationError(f"{instance!r} is always invalid")
     if not any(validator.is_type(instance, type) for type in types):
         reprs = ", ".join(repr(type) for type in types)
         yield exceptions.ValidationError(f"{instance!r} is not of type {reprs}")
+
 
 class JsonSchemaTestSuite(TestCase):
 
@@ -114,6 +119,7 @@ class JsonSchemaTestSuite(TestCase):
             print(suite['description'])
 
         schema_orig = suite['schema']
+
         if self.skip(schema_orig):
             stats.num_skipped += 1
             return
@@ -140,16 +146,15 @@ class JsonSchemaTestSuite(TestCase):
             return
 
         # Check if schemas are equal
-        validator_orig = validators.validator_for(schema_orig)(
+        validator_orig = validators.Draft202012Validator(
             schema_orig, resolver=RaisingResolver())
-        validator_norm = validators.validator_for(schema_norm)(
-            schema_norm, resolver=RaisingResolver())
-        validator_norm = validators.extend(validator_norm, {
-            'NOT_const': invert(validator_norm.VALIDATORS["const"]),
-            'NOT_enum': invert(validator_norm.VALIDATORS["enum"]),
-            'NOT_multipleOf': invert(validator_norm.VALIDATORS["multipleOf"]),
-            'type': validated_type,
-        })
+        base = validators.Draft202012Validator
+        validator_norm = validators.extend(base, {
+            'NOT_const': invert(base.VALIDATORS["const"]),
+            'NOT_enum': invert(base.VALIDATORS["enum"]),
+            'NOT_multipleOf': invert(base.VALIDATORS["multipleOf"]),
+            'type': validate_type,
+        })(schema_norm, resolver=RaisingResolver())
 
         for test_case in suite['tests']:
             data = test_case['data']
@@ -163,7 +168,7 @@ class JsonSchemaTestSuite(TestCase):
                 # Ignore this sample, try next one
                 continue
             try:
-                validate(data, schema_norm, resolver=RaisingResolver())
+                validator_norm.validate(data)
                 valid_by_norm = True
             except (exceptions.ValidationError, exceptions.SchemaError) as e:
                 valid_by_norm = False

@@ -224,6 +224,7 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
         if token in required:
             raise JsonSchemaException(
                 f"Duplicate token '{token}' in ${sub_path}", sub_path)
+        # TODO: this is actually ok, but it really simplifies debugging
         if token not in props:
             raise JsonSchemaException(
                 f"Token '{token}' is not a property at ${sub_path}", sub_path)
