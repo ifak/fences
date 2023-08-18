@@ -156,7 +156,7 @@ class TestGenerate(unittest.TestCase):
         }
         self.check(schema)
 
-    def DISABLED_test_not_1(self):
+    def test_not_1(self):
         schema = {
             "not": {
                 "properties": {
@@ -168,9 +168,9 @@ class TestGenerate(unittest.TestCase):
                 }
             }
         }
-        self.check(schema, True)
+        self.check(schema)
 
-    def DISABLED_test_not_2(self):
+    def test_not_2(self):
         schema = {
             "not": {
                 "properties": {
@@ -185,7 +185,7 @@ class TestGenerate(unittest.TestCase):
                 }
             }
         }
-        self.check(schema)
+        self.check(schema, strict_invalid=False)
 
     def test_const(self):
         schema = {

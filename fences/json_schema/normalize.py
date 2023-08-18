@@ -46,6 +46,7 @@ def _invert_properties(props: dict):
     return {
         'type': 'object',
         'properties': new_props,
+        'required': list(props.keys())
     }
 
 def _invert_items(items: dict):
@@ -75,8 +76,8 @@ _inverters = {
 
 
 def _invert(trivial_schema: dict) -> dict:
-    # NOT(a or b or c)
-    # = NOT(a) and NOT(b) and NOT(c)
+    # NOT(a and b and c)
+    # = NOT(a) or NOT(b) or NOT(c)
     result = []
     if len(trivial_schema) == 0:
         return NORM_FALSE.copy()
@@ -411,6 +412,7 @@ def _to_dnf(schema: dict, full_merge: bool) -> dict:
     if schema is True:
         return NORM_TRUE.copy()
 
+    schema = copy.deepcopy(schema)
     schema = _simplify_const(schema)
     schema = _simplify_if_then_else(schema)
     schema = _simplify_type(schema)
