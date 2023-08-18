@@ -1378,15 +1378,15 @@ $defs:
       - typeValueListElement
   SubmodelElement_choice:
     anyOf:
-    - $ref: "#/$defs/DataElement_choice"
-    - $ref: "#/$defs/RelationshipElement_choice"
-    - $ref: "#/$defs/BasicEventElement"
-    - $ref: "#/$defs/Capability"
-    - $ref: "#/$defs/Entity"
-    - $ref: "#/$defs/Operation"
+    # - $ref: "#/$defs/DataElement_choice"
+    # - $ref: "#/$defs/RelationshipElement_choice"
+    # - $ref: "#/$defs/BasicEventElement"
+    # - $ref: "#/$defs/Capability"
+    # - $ref: "#/$defs/Entity"
+    # - $ref: "#/$defs/Operation"
     - $ref: "#/$defs/Property"
-    - $ref: "#/$defs/SubmodelElementCollection"
-    - $ref: "#/$defs/SubmodelElementList"
+    # - $ref: "#/$defs/SubmodelElementCollection"
+    # - $ref: "#/$defs/SubmodelElementList"
   ValueList:
     type: object
     properties:

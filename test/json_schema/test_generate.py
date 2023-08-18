@@ -308,13 +308,48 @@ class TestGenerate(unittest.TestCase):
         }
         self.check(schema, strict_invalid=False)
 
+    def test_constraint_aasd_014(self):
+        schema = {
+            "properties": {
+                "globalAssetId": {"type": "string"},
+                "specificAssetIds": {"type": "array"},
+            },
+            "if": {
+                "properties": {
+                    "entityType": {
+                        "const": "SelfManagedEntity"
+                    }
+                },
+                "required": ["entityType"]
+            },
+            "then": {
+                "anyOf": [
+                {
+                    "required": ["globalAssetId"],
+                    "not": {
+                        "required": ["specificAssetIds"]
+                    }
+                },
+                {
+                    "required": ["specificAssetIds"],
+                    "not": {
+                        "required": ["globalAssetId"]
+                    }
+                }
+                ]
+            },
+            "else": {
+                "not": {
+                "required": ["globalAssetId", "specificAssetId"]
+                }
+            }
+        }
+        self.check(schema, strict_invalid=False)
+
     def test_aas(self):
-        with open(os.path.join(SCRIPT_DIR, '..', '..', 'examples', 'asset_administration_shell', 'aas.yaml')) as file:
+        with open(os.path.join(SCRIPT_DIR, '..', 'fixtures', 'json', 'aas_small.yaml')) as file:
             schema = yaml.safe_load(file)
         schema = normalize(schema, False)
-        # yaml.SafeDumper.ignore_aliases = lambda *args: True
-        # with open("aas_norm.yml", "w") as f:
-        #     yaml.safe_dump(schema, f)
         schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'
         graph = parse.parse(schema)
         check_consistency(graph)
