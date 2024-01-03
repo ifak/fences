@@ -10,12 +10,7 @@ Handler = Callable[[dict, "Config", Set[str], JsonPointer], Decision]
 
 
 @dataclass
-class StringGenerators:
-    valid: List[Callable[[StringProperties], str]] = field(default_factory=list)
-
-@dataclass
 class Config:
     key_handlers: Dict[str, Handler]
     type_handlers: Dict[str, Handler]
-    string_generators: StringGenerators
     default_samples: Dict[str, List[any]]

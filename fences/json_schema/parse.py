@@ -2,9 +2,9 @@ import re
 from typing import Set, Dict, List, Optional, Union
 
 from .exceptions import JsonSchemaException
-from .config import Config, StringGenerators
+from .config import Config
 from .json_pointer import JsonPointer
-from ..core.random import generate_random_string, StringProperties
+from ..core.random import generate_random_string, StringProperties, generate_random_format
 
 from fences.core.node import Decision, Leaf, Node, Reference, NoOpLeaf, NoOpDecision
 
@@ -117,14 +117,13 @@ def default_config():
             'number': parse_number,
             'null': parse_null,
         },
-        string_generators=StringGenerators(
-            valid=[
-                generate_random_string,
-            ],
-        ),
         default_samples={
             'string': ["string"],
             'number': [42],
+            'null': [None],
+            'boolean': [True, False],
+            'object': [{}],
+            'array': [[]]
         }
     )
 
@@ -140,14 +139,24 @@ def _read_typesafe(data: dict, key: str, unparsed_keys: Set[str], type, typename
             return default
     value = data[key]
     if not isinstance(value, type):
-        raise JsonSchemaException(
-            f"{value} is not a {typename} at {pointer}", None)
+        raise JsonSchemaException(f"{value} is not a {typename} at {pointer}", None)
     unparsed_keys.remove(key)
     return value
 
 
+def _read_float(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=_NO_DEFAULT) -> str:
+    return _read_typesafe(data, key, unparsed_keys, (int, float), 'float', pointer, default)
+
+
 def _read_int(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=_NO_DEFAULT) -> str:
-    return _read_typesafe(data, key, unparsed_keys, int, 'int', pointer, default)
+    v = _read_typesafe(data, key, unparsed_keys, (int, float), 'int', pointer, default)
+    if v is default:
+        return v
+    if isinstance(v, float):
+        if int(v) != v:
+            raise JsonSchemaException(f"{v} is not a 'int' at {pointer}", None)
+        v = int(v)
+    return v
 
 
 def _read_string(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPointer, default=_NO_DEFAULT) -> str:
@@ -205,29 +214,19 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
         data, 'additionalProperties', unparsed_keys, path, {})
     min_properties = _read_int(data, 'minProperties', unparsed_keys, path, 0)
     max_properties = _read_int(data, 'maxProperties', unparsed_keys, path, 0)
-    pattern_properties = _read_dict(
-        data, 'patternProperties', unparsed_keys, path, {})
+    pattern_properties = _read_dict(data, 'patternProperties', unparsed_keys, path, {})
     property_names = _read_dict(data, 'propertyNames', unparsed_keys, path, {})
-    unevaluated_properties = _read_dict(
-        data, 'unevaluatedProperties', unparsed_keys, path, {})
-    depended_required = _read_dict(
-        data, 'dependentRequired', unparsed_keys, path, [])
-    dependent_schema = _read_dict(
-        data, 'dependentSchemas', unparsed_keys, path, {})
+    unevaluated_properties = _read_dict(data, 'unevaluatedProperties', unparsed_keys, path, {})
+    depended_required = _read_dict(data, 'dependentRequired', unparsed_keys, path, [])
+    dependent_schema = _read_dict(data, 'dependentSchemas', unparsed_keys, path, {})
 
     required: Set[str] = set()
     for idx, token in enumerate(_read_list(data, 'required', unparsed_keys, path, [])):
         sub_path = path + 'required' + idx
         if not isinstance(token, str):
-            raise JsonSchemaException(
-                f"'{token}' is not a string at ${sub_path}", sub_path)
+            raise JsonSchemaException(f"'{token}' is not a string at ${sub_path}", sub_path)
         if token in required:
-            raise JsonSchemaException(
-                f"Duplicate token '{token}' in ${sub_path}", sub_path)
-        # TODO: this is actually ok, but it really simplifies debugging
-        if token not in props:
-            raise JsonSchemaException(
-                f"Token '{token}' is not a property at ${sub_path}", sub_path)
+            raise JsonSchemaException(f"Duplicate token '{token}' in ${sub_path}", sub_path)
         required.add(token)
 
     super_root = NoOpDecision(f"{path}_OBJECT")
@@ -264,26 +263,25 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
 def parse_string(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     root = NoOpDecision()
     pattern = _read_string(data, 'pattern', unparsed_keys, path, '')
-    content_media_type = _read_string(
-        data, 'contentMediaType', unparsed_keys, path, '')
-    content_encoding = _read_string(
-        data, 'contentEncoding', unparsed_keys, path, '')
+    content_media_type = _read_string(data, 'contentMediaType', unparsed_keys, path, '')
+    content_encoding = _read_string(data, 'contentEncoding', unparsed_keys, path, '')
     content_schema = _read_dict(data, 'contentSchema', unparsed_keys, path, {})
     if pattern:
         regex = pattern
     else:
         regex = None
     # TODO: use format
-    format = _read_string(data, 'format', unparsed_keys, path, '')
-    properties = StringProperties(
-        min_length=_read_int(data, 'minLength', unparsed_keys, path, 0),
-        max_length=_read_int(
-            data, 'maxLength', unparsed_keys, path, float("inf")),
-        # pattern=regex,
-    )
-    for generator in config.string_generators.valid:
-        value = generator(properties)
-        root.add_transition(SetValueLeaf(None, True, value))
+    format = _read_string(data, 'format', unparsed_keys, path, None)
+    if format is None:
+        properties = StringProperties(
+            min_length=_read_int(data, 'minLength', unparsed_keys, path, 0),
+            max_length=_read_int(data, 'maxLength', unparsed_keys, path, float("inf")),
+            # pattern=regex,
+        )
+        value = generate_random_string(properties)
+    else:
+        value = generate_random_format(format)
+    root.add_transition(SetValueLeaf(None, True, value))
     return root
 
 
@@ -326,15 +324,34 @@ def parse_boolean(data: dict, config: Config, unparsed_keys: Set[str], path: Jso
 
 
 def parse_number(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    minimum = _read_int(data, 'minimum', unparsed_keys, path, float('-inf'))
-    minimum_exclusive = _read_int(
-        data, 'exclusiveMinimum', unparsed_keys, path, float('-inf'))
-    maximum = _read_int(data, 'maximum', unparsed_keys, path, float('+inf'))
-    maximumExclusive = _read_int(
-        data, 'exclusiveMaximum', unparsed_keys, path, float('+inf'))
-    multipleOf = _read_int(data, 'multipleOf', unparsed_keys, path, 1)
+    minimum = _read_float(data, 'minimum', unparsed_keys, path, None)
+    minimum_exclusive = _read_float(data, 'exclusiveMinimum', unparsed_keys, path, None)
+    maximum = _read_float(data, 'maximum', unparsed_keys, path, None)
+    maximum_exclusive = _read_float(data, 'exclusiveMaximum', unparsed_keys, path, None)
+    multiple_of = _read_float(data, 'multipleOf', unparsed_keys, path, None)
+
+    if minimum_exclusive is not None:
+        minimum = minimum_exclusive + 1  # TODO: actually just add one bit (https://docs.python.org/3/tutorial/floatingpoint.html)
+    if maximum_exclusive is not None:
+        maximum = maximum_exclusive - 1  # TODO: actually just subtract one bit
+
+    invalid_values = []
+    if minimum is not None:
+        invalid_values.append(minimum - 1)
+    if maximum is not None:
+        invalid_values.append(maximum + 1)
+
+    valid_value = minimum or maximum or 0
+    if multiple_of is not None:
+        valid_value = (int(valid_value / multiple_of)) * multiple_of
+        if minimum is not None and valid_value < minimum:
+            valid_value += multiple_of
+
     root = NoOpDecision(f"{path}_NUMBER")
-    root.add_transition(SetValueLeaf(None, True, 42))
+    root.add_transition(SetValueLeaf(None, True, valid_value))
+    for value in invalid_values:
+        root.add_transition(SetValueLeaf(None, False, value))
+
     return root
 
 
