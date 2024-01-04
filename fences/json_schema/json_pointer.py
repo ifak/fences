@@ -19,7 +19,7 @@ class JsonPointer:
 
     @classmethod
     def from_string(self, value: str) -> "JsonPointer":
-        if value == '#/':
+        if value == '#/' or value == '#':
             return JsonPointer()
 
         if not value.startswith('#/'):

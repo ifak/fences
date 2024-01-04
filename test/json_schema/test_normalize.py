@@ -77,6 +77,11 @@ class CheckNormalizedTest(TestCase):
             'anyOf': [{}, {}],
         })
 
+    def test_contains(self):
+        with self.assertRaises(NormalizationException):
+            check_normalized({'contains': {}})
+        check_normalized({'anyOf': [{'contains': {'anyOf': []}}]})
+
     def test_ref(self):
         with self.assertRaises(NormalizationException):
             check_normalized({'$ref': 'foo', 'x': 'bar'})

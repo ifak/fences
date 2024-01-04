@@ -495,7 +495,7 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
 
     # Iterate sub-schemas
     for sub_schema in result['anyOf']:
-        for kw in ['additionalProperties', 'items', 'additionalItems']:
+        for kw in ['additionalProperties', 'items', 'additionalItems', 'contains']:
             if kw in sub_schema:
                 sub_schema[kw] = _normalize(
                     sub_schema[kw], resolver, new_refs, full_merge)
@@ -584,7 +584,7 @@ def _check_normalized(schema: SchemaType, resolver: Resolver, checked_refs: Set[
                     pointer), resolver, checked_refs)
 
         # Traverse sub-schemas
-        for kw in ['additionalProperties', 'items', 'additionalItems']:
+        for kw in ['additionalProperties', 'items', 'additionalItems', 'contains']:
             if kw in schema:
                 _check_normalized(schema[kw], resolver, checked_refs)
 

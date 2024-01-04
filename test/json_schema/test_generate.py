@@ -80,23 +80,53 @@ class TestString(TestGenerateBase):
         self.check({'type': 'string', 'format': "email"})
 
 
-class TestAggregators(TestGenerateBase):
+class TestArray(TestGenerateBase):
 
-    def test_empty(self):
-        self.check({})
+    def test_no_constraints(self):
+        self.check({'type': 'array'})
 
-    def test_simple(self):
-        schema = {
-            "type": "object",
-            "properties": {
-                "x": {
-                    "type": "string"
-                }
-            }
-        }
-        self.check(schema)
+    def test_items(self):
+        self.check({'type': 'array', 'items': {'type': 'string'}})
+        self.check({'type': 'array', 'items': {'type': 'number'}})
+        self.check({'type': 'array', 'items': {'type': 'array'}})
+        self.check({'type': 'array', 'items': {'type': 'boolean'}})
+        self.check({'type': 'array', 'items': {'type': 'null'}})
+        self.check({'type': 'array', 'items': {'type': 'object', 'properties': {'foo': {}}}})
 
-    def test_schema1(self):
+    def test_length(self):
+        self.check({'type': 'array', 'minItems': 3})
+        self.check({'type': 'array', 'maxItems': 3})
+
+    def test_prefix_items(self):
+        self.check({'type': 'array', 'prefixItems': [{'type': 'string'}]})
+
+    def test_contains(self):
+        self.check({'type': 'array', 'contains': {'type': 'string'}})
+        self.check({'type': 'array', 'contains': {'type': 'string'}, 'minContains': 2})
+        self.check({
+            'type': 'array',
+            'contains': {'type': 'number', 'minimum': 3}, 'minContains': 2,
+            'items': {'type': 'number'}
+        })
+
+
+class TestObject(TestGenerateBase):
+
+    def test_no_constraints(self):
+        self.check({'type': 'object'})
+
+    def test_optional_properties(self):
+        self.check({'type': 'object', 'properties': {'foo': {}}})
+
+    def test_required_properties(self):
+        self.check({'type': 'object', 'required': ['foo'], 'properties': {'foo': {}}})
+        self.check({'type': 'object', 'required': ['foo'], 'properties': {'bar': {}}})
+        self.check({'type': 'object', 'required': ['foo']})
+
+
+class TestRefs(TestGenerateBase):
+
+    def test_refs(self):
         schema = {
             "type": "object",
             "properties": {
@@ -108,7 +138,7 @@ class TestAggregators(TestGenerateBase):
                         "second": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "$ref": "#/$defs/mydef"
                             }
                         }
                     }
@@ -129,20 +159,20 @@ class TestAggregators(TestGenerateBase):
         }
         self.check(schema)
 
-    def DISABLED_test_schema2(self):
+    def test_recursive_ref(self):
         schema = {
             "type": "array",
             "items": {
                 "properties": {
                     "second": {
-                        "$ref": "#/"
+                        "$ref": "#"
                     }
                 }
             }
         }
         self.check(schema)
 
-    def test_schema3(self):
+    def test_many_refs(self):
         schema = {
             "allOf": [
                 {
@@ -199,6 +229,66 @@ class TestAggregators(TestGenerateBase):
         }
         self.check(schema)
 
+
+class TestSpecial(TestGenerateBase):
+
+    def test_empty(self):
+        self.check({})
+
+    def test_const(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "const": "United States of America"
+                }
+            }
+        }
+        self.check(schema)
+
+    def test_boolean_schema(self):
+        schema = {'allOf': [True, True]}
+        self.check(schema)
+
+    def test_only_invalid_leafs(self):
+        schema = {
+            "type": "object",
+            "anyOf": [{
+                "properties": {
+                    "a": {
+                        "type": "object",
+                        "properties": {
+                            "b": False
+                        },
+                        "required": ["b"]
+                    },
+                },
+                "required": ["a"]
+            }, {
+                "type": "object",
+                "properties": {
+                    "c": {"type": "string"}
+                }
+            }]
+        }
+        self.check(schema, strict_invalid=False)
+
+    def test_dependent_required(self):
+        schema = {
+            "dependentRequired": {
+                "a": ["b", "c"]
+            },
+            "properties": {
+                "a": {"type": "string"},
+                "b": {"type": "boolean"},
+                "c": {"type": "number"},
+            }
+        }
+        self.check(schema, strict_invalid=False)
+
+
+class TestLogicalApplicators(TestGenerateBase):
+
     def test_not_1(self):
         schema = {
             "not": {
@@ -229,21 +319,6 @@ class TestAggregators(TestGenerateBase):
             }
         }
         self.check(schema, strict_invalid=False)
-
-    def test_const(self):
-        schema = {
-            "type": "object",
-            "properties": {
-                "country": {
-                    "const": "United States of America"
-                }
-            }
-        }
-        self.check(schema)
-
-    def test_boolean(self):
-        schema = {'allOf': [True, True]}
-        self.check(schema)
 
     def test_all_of_objects(self):
         schema = {
@@ -295,29 +370,6 @@ class TestAggregators(TestGenerateBase):
         }
         self.check(schema)
 
-    def test_only_invalid_leafs(self):
-        schema = {
-            "type": "object",
-            "anyOf": [{
-                "properties": {
-                    "a": {
-                        "type": "object",
-                        "properties": {
-                            "b": False
-                        },
-                        "required": ["b"]
-                    },
-                },
-                "required": ["a"]
-            }, {
-                "type": "object",
-                "properties": {
-                    "c": {"type": "string"}
-                }
-            }]
-        }
-        self.check(schema, strict_invalid=False)
-
     def test_if(self):
         schema = {
             "if": {
@@ -338,18 +390,8 @@ class TestAggregators(TestGenerateBase):
         }
         self.check(schema, strict_invalid=False)
 
-    def test_dependent_required(self):
-        schema = {
-            "dependentRequired": {
-                "a": ["b", "c"]
-            },
-            "properties": {
-                "a": {"type": "string"},
-                "b": {"type": "boolean"},
-                "c": {"type": "number"},
-            }
-        }
-        self.check(schema, strict_invalid=False)
+
+class AasTest(TestGenerateBase):
 
     def test_constraint_aasd_014(self):
         schema = {
@@ -399,5 +441,8 @@ class TestAggregators(TestGenerateBase):
         num_samples = 0
         for i in graph.generate_paths():
             sample = graph.execute(i.path)
+            # validator = Draft202012Validator(schema)
+            # if i.is_valid:
+            #     validator.validate(sample)
             num_samples += 1
         print(f"Generated {num_samples} samples")

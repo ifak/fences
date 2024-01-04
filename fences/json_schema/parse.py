@@ -210,8 +210,7 @@ def parse_reference(data: dict, config: Config, unparsed_keys: Set[str], path: J
 def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     props = _read_dict(data, 'properties', unparsed_keys, path, {})
 
-    additional_props = _read_dict(
-        data, 'additionalProperties', unparsed_keys, path, {})
+    additional_props = _read_dict(data, 'additionalProperties', unparsed_keys, path, {})
     min_properties = _read_int(data, 'minProperties', unparsed_keys, path, 0)
     max_properties = _read_int(data, 'maxProperties', unparsed_keys, path, 0)
     pattern_properties = _read_dict(data, 'patternProperties', unparsed_keys, path, {})
@@ -219,20 +218,22 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
     unevaluated_properties = _read_dict(data, 'unevaluatedProperties', unparsed_keys, path, {})
     depended_required = _read_dict(data, 'dependentRequired', unparsed_keys, path, [])
     dependent_schema = _read_dict(data, 'dependentSchemas', unparsed_keys, path, {})
+    required = _read_list(data, 'required', unparsed_keys, path, [])
 
-    required: Set[str] = set()
-    for idx, token in enumerate(_read_list(data, 'required', unparsed_keys, path, [])):
+    required_props: Set[str] = set()
+    for idx, token in enumerate(required):
         sub_path = path + 'required' + idx
         if not isinstance(token, str):
             raise JsonSchemaException(f"'{token}' is not a string at ${sub_path}", sub_path)
-        if token in required:
+        if token in required_props:
             raise JsonSchemaException(f"Duplicate token '{token}' in ${sub_path}", sub_path)
-        required.add(token)
+        required_props.add(token)
 
     super_root = NoOpDecision(f"{path}_OBJECT")
 
+    # Properties
     root = CreateObjectNode(None, True)
-    all_optional = True
+    super_root.add_transition(root)
     for key, value in props.items():
         sub_path = path + 'properties' + key
 
@@ -246,16 +247,24 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
         key_node.add_transition(value_node)
 
         # Omit property (valid if not required)
-        if key in required:
+        if key in required_props:
             property_root.add_transition(NoOpLeaf(None, is_valid=False))
-            all_optional = False
+            required_props.remove(key)
         else:
             property_root.add_transition(NoOpLeaf(None, is_valid=True))
 
-    super_root.add_transition(root)
+    # All remaining properties only mentioned in 'required'
+    for key in required_props:
+        sub_path = path + 'required' + key
+        property_root = NoOpDecision(f"{sub_path}__PROP", False)
+        root.add_transition(property_root)
+        key_node = InsertKeyNode(f"{sub_path}__KEY", key)
+        property_root.add_transition(key_node)
+        value_node = generate_default_samples(config)
+        key_node.add_transition(value_node)
 
-    # TODO:
-    # super_root.add_transition(SetValueLeaf(None, all_optional, {}))
+    if not root.outgoing_transitions:
+        root.add_transition(NoOpLeaf(None, True))
 
     return super_root
 
@@ -284,34 +293,61 @@ def parse_string(data: dict, config: Config, unparsed_keys: Set[str], path: Json
     root.add_transition(SetValueLeaf(None, True, value))
     return root
 
+def generate_default_samples(config: Config) -> Node:
+    items_node = NoOpDecision(None, False)
+    for samples in config.default_samples.values():
+        for sample in samples:
+            items_node.add_transition(SetValueLeaf(None, True, sample))
+    return items_node
 
-def parse_array(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    min_items = _read_int(data, 'minItems', unparsed_keys, path, 0)
-    max_items = _read_int(data, 'maxItems', unparsed_keys, path, 0)
-    prefix_items = _read_dict(data, 'prefixItems', unparsed_keys, path, {})
-    unique_items = _read_dict(data, 'uniqueItems', unparsed_keys, path, {})
-    contains = _read_dict(data, 'contains', unparsed_keys, path, {})
-    min_contains = _read_int(data, 'minContains', unparsed_keys, path, 0)
-    max_contains = _read_int(data, 'maxContains', unparsed_keys, path, 0)
 
-    items = _read_dict(data, 'items', unparsed_keys, path, None)
-    items_path = path + 'items'
-    root_node = NoOpDecision(f"{path}_ARRAY")
+def parse_array(data: dict, config: Config, unparsed_keys: Set[str], pointer: JsonPointer) -> Node:
+    min_items = _read_int(data, 'minItems', unparsed_keys, pointer, 1)
+    max_items = _read_int(data, 'maxItems', unparsed_keys, pointer, None)
+    prefix_items = _read_list(data, 'prefixItems', unparsed_keys, pointer, {})
+    unique_items = _read_dict(data, 'uniqueItems', unparsed_keys, pointer, {})
+    contains = _read_dict(data, 'contains', unparsed_keys, pointer, None)
+    min_contains = _read_int(data, 'minContains', unparsed_keys, pointer, 1)
+    max_contains = _read_int(data, 'maxContains', unparsed_keys, pointer, None)
 
-    # Valid
-    create_node = CreateArrayNode(None)
-    append_node = AppendArrayItemNode(None)
-    root_node.add_transition(create_node)
-    create_node.add_transition(append_node)
-    if items is None:
-        for samples in config.default_samples.values():
-            for sample in samples:
-                append_node.add_transition(
-                    SetValueLeaf(None, True, sample)
-                )
-    else:
-        append_node.add_transition(
-            parse_dict(items, config, items_path))
+    items = _read_dict(data, 'items', unparsed_keys, pointer, None)
+
+    root_node = CreateArrayNode(f"{pointer}_ARRAY", True)
+
+    # Prefix items
+    if prefix_items:
+        prefix_items_node = NoOpDecision(f"{pointer}_PREFIX", True)
+        root_node.add_transition(prefix_items_node)
+        for idx, item in enumerate(prefix_items):
+            node = parse_dict(item, config, pointer + 'prefixItems' + idx)
+            append_node = AppendArrayItemNode(None)
+            append_node.add_transition(node)
+            prefix_items_node.add_transition(append_node)
+
+    # Contained items
+    if min_contains and contains is not None:
+        contains_items_node = NoOpDecision(f"{pointer}_CONTAINS", True)
+        root_node.add_transition(contains_items_node)
+        node = parse_dict(contains, config, pointer + 'contains')
+        append_node = AppendArrayItemNode(None)
+        append_node.add_transition(node)
+        for _ in range(min_contains):
+            contains_items_node.add_transition(append_node)
+        min_items = max(0, min_items - min_contains)
+
+    # Items
+    if min_items:
+        all_items_node = NoOpDecision(f"{pointer}_ITEMS", True)
+        root_node.add_transition(all_items_node)
+        if items is None:
+            items_node = generate_default_samples(config)
+        else:
+            items_node = parse_dict(items, config, pointer + 'items')
+
+        for _ in range(min_items):
+            append_node = AppendArrayItemNode(None)
+            append_node.add_transition(items_node)
+            all_items_node.add_transition(append_node)
 
     return root_node
 
@@ -401,7 +437,7 @@ def parse_any_of_entry(entry: dict, config: Config, pointer: JsonPointer) -> Nod
 def parse_dict(data: dict, config: Config, pointer: JsonPointer) -> Node:
     root = NoOpDecision(str(pointer), False)
     unparsed_keys = set(data.keys())
-    any_of = _read_list(data, 'anyOf', unparsed_keys, pointer, [])
+    any_of = _read_list(data, 'anyOf', unparsed_keys, pointer)
 
     for idx, entry in enumerate(any_of):
         root.add_transition(parse_any_of_entry(
