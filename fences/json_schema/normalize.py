@@ -109,10 +109,15 @@ def _merge_enums(a: List[any], b: List[any]) -> List[any]:
     b = set(b)
     return list(a & b)
 
+def _float_gcd(a, b, rtol = 1e-05, atol = 1e-08):
+    t = min(abs(a), abs(b))
+    while abs(b) > rtol * t + atol:
+        a, b = b, a % b
+    return a
 
 _simple_mergers = {
     'required': lambda a, b: list(set(a) | set(b)),
-    'multipleOf': lambda a, b: abs(a*b) // math.gcd(a, b),
+    'multipleOf': lambda a, b: abs(a*b) // _float_gcd(a, b),
     'items': lambda a, b: {'allOf': [a, b]},
     'minimum': lambda a, b: max(a, b),
     'maximum': lambda a, b: min(a, b),

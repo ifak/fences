@@ -358,7 +358,6 @@ def parse_boolean(data: dict, config: Config, unparsed_keys: Set[str], path: Jso
     root.add_transition(SetValueLeaf(None, True, value=False))
     return root
 
-
 def parse_number(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
     minimum = _read_float(data, 'minimum', unparsed_keys, path, None)
     minimum_exclusive = _read_float(data, 'exclusiveMinimum', unparsed_keys, path, None)
@@ -378,7 +377,7 @@ def parse_number(data: dict, config: Config, unparsed_keys: Set[str], path: Json
         invalid_values.append(maximum + 1)
 
     valid_value = minimum or maximum or 0
-    if multiple_of is not None:
+    if multiple_of is not None and abs(multiple_of) > 1e-5:
         valid_value = (int(valid_value / multiple_of)) * multiple_of
         if minimum is not None and valid_value < minimum:
             valid_value += multiple_of
