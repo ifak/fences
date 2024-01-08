@@ -318,8 +318,7 @@ class Coverage(TestCase):
 
             # Validate using generated test data from fences
             cov.reset()
-            norm_schema = normalize(schema)
-            graph = parse_json_schema(norm_schema)
+            graph = parse_json_schema(schema)
             for i in graph.generate_paths():
                 sample = graph.execute(i.path)
                 result = validator.validate(sample)

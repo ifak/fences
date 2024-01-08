@@ -14,3 +14,4 @@ class Config:
     key_handlers: Dict[str, Handler]
     type_handlers: Dict[str, Handler]
     default_samples: Dict[str, List[any]]
+    normalize: bool

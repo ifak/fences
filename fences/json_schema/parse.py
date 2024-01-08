@@ -1,10 +1,10 @@
-import re
 from typing import Set, Dict, List, Optional, Union
 
 from .exceptions import JsonSchemaException
 from .config import Config
 from .json_pointer import JsonPointer
 from ..core.random import generate_random_string, StringProperties, generate_random_format
+from .normalize import normalize
 
 from fences.core.node import Decision, Leaf, Node, Reference, NoOpLeaf, NoOpDecision
 
@@ -124,7 +124,8 @@ def default_config():
             'boolean': [True, False],
             'object': [{}],
             'array': [[]]
-        }
+        },
+        normalize=True,
     )
 
 
@@ -450,6 +451,9 @@ def parse(data: dict, config=None) -> Node:
     if config is None:
         config = default_config()
 
+    if config.normalize:
+        data = normalize(data)
+
     pointer = JsonPointer()
     unparsed_keys = set(data.keys())
 
@@ -465,7 +469,7 @@ def parse(data: dict, config=None) -> Node:
     root = parse_dict(data, config, pointer)
     root = root.resolve(all_nodes)
 
-    # root.optimize()
+    root.optimize()
 
     # prepend input / output nodes
     create_input = CreateInputNode()

@@ -1,4 +1,4 @@
-from fences.json_schema import parse
+from fences.json_schema import parse, normalize
 from fences.core.debug import check_consistency
 from jsonschema import Draft202012Validator, ValidationError
 import unittest
@@ -6,7 +6,6 @@ import yaml
 import os
 import json
 from fences.core.render import render
-from fences.json_schema.normalize import normalize
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -19,10 +18,6 @@ class TestGenerateBase(unittest.TestCase):
             yaml.SafeDumper.ignore_aliases = lambda *args: True
             print(yaml.safe_dump(schema))
         validator = Draft202012Validator(schema)
-        schema = normalize(schema)
-        if debug:
-            print("Normalized schema:")
-            print(yaml.safe_dump(schema))
         graph = parse.parse(schema)
         if debug:
             render(graph).write_svg('graph.svg')
@@ -434,8 +429,10 @@ class AasTest(TestGenerateBase):
     def test_aas(self):
         with open(os.path.join(SCRIPT_DIR, '..', 'fixtures', 'json', 'aas_small.yaml')) as file:
             schema = yaml.safe_load(file)
-        schema = normalize(schema, False)
+        schema = normalize.normalize(schema, False)
         schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'
+        config = parse.default_config()
+        config.normalize = False
         graph = parse.parse(schema)
         check_consistency(graph)
         num_samples = 0
