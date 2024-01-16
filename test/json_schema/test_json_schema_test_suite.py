@@ -14,7 +14,7 @@ from jsonschema._utils import equal
 
 from json_schema_tool import parse_schema, coverage
 
-from hypothesis import given
+from hypothesis import given, settings, HealthCheck, errors
 from hypothesis_jsonschema import from_schema
 
 
@@ -227,6 +227,17 @@ class Normalize(TestCase):
         self.assertEqual(ok1, ok2)
 
 
+@dataclass
+class CoverageStats:
+    total = 0
+    manual_coverage = 0
+    manual_count = 0
+    fences_coverage = 0
+    fences_count = 0
+    hypothesis_coverage = 0
+    hypothesis_count = 0
+
+
 class Coverage(TestCase):
     blacklist = [
         # Not implemented, yet (object)
@@ -288,7 +299,7 @@ class Coverage(TestCase):
             s = s[:length] + ellipsis
         return s
 
-    def run_suite(self, file, table: util.Table):
+    def run_suite(self, file, table: util.Table, stats: CoverageStats):
         if self.output:
             print(file)
         with open(file, "rb") as f:
@@ -305,52 +316,82 @@ class Coverage(TestCase):
             row = []
             row.append(self.trim(suite['description']))
             validator = parse_schema(schema)
+            stats.total += 1
 
             # Validate using official test data
             cov = coverage.SchemaCoverage(validator)
+            count = 0
             for test in suite['tests']:
                 data = test['data']
                 expected_valid = test['valid']
                 result = validator.validate(data)
                 cov.update(result)
                 self.assertEqual(expected_valid, result.ok)
-            row.append(str(int(cov.coverage()*100)))
+                count += 1
+            n = cov.coverage()
+            stats.manual_coverage += n
+            stats.manual_count += count
+            row.extend([str(int(n*100)), str(count)])
 
             # Validate using generated test data from fences
             cov.reset()
+            count = 0
             graph = parse_json_schema(schema)
             for i in graph.generate_paths():
                 sample = graph.execute(i.path)
                 result = validator.validate(sample)
                 cov.update(result)
-            row.append(str(int(cov.coverage()*100)))
+                count += 1
+            n = cov.coverage()
+            stats.fences_coverage += n
+            stats.fences_count += count
+            row.extend([str(int(n*100)), str(count)])
 
             # Validate using generated test data from Hypothesis
             if self.with_hypothesis:
+                print(description)
                 cov.reset()
+                validation_results = []
 
                 @given(from_schema(schema))
+                @settings(suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
                 def test(value):
                     result = validator.validate(value)
-                    cov.update(result)
-                test()
-                row.append(str(int(cov.coverage()*100)))
+                    validation_results.append(result)
+                try:
+                    test()
+                except errors.Unsatisfiable:
+                    pass
+
+                for i in validation_results:
+                    cov.update(i)
+                n = cov.coverage()
+                stats.hypothesis_coverage += n
+                stats.hypothesis_count += len(validation_results)
+                row.extend([str(int(n*100)), str(len(validation_results))])
+            else:
+                row.extend(['-', '-'])
 
             table.append(row)
 
     def test_all_suites(self):
         root = os.path.join(script_dir, '../fixtures/JSON-Schema-Test-Suite/tests/draft2020-12')
         table = []
-        if self.with_hypothesis:
-            table.append(['Suite', 'Manual', 'Hypothesis', 'Fences'])
-        else:
-            table.append(['Suite', 'Manual', 'Fences'])
+        table.append(['Suite', 'Manual', '', 'Fences', '', 'Hypothesis', ''])
+        table.append(['', 'Cov.', 'Count', 'Cov.', 'Count', 'Cov.', 'Count'])
         table.append(None)
+        stats = CoverageStats()
         for file in sorted(os.listdir(root)):
             if file in self.blacklist:
                 continue
             table.append([file])
-            self.run_suite(os.path.join(root, file), table)
+            self.run_suite(os.path.join(root, file), table, stats)
             table.append(None)
+        table.append([
+            'Total',
+            str(int(stats.manual_coverage * 100 / stats.total)),     str(stats.manual_count),
+            str(int(stats.fences_coverage * 100 / stats.total)),     str(stats.fences_count),
+            str(int(stats.hypothesis_coverage * 100 / stats.total)), str(stats.hypothesis_count),
+        ])
         print()
         util.print_table(table)
