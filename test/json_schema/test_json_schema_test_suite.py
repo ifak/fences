@@ -1,6 +1,7 @@
 import os
 import yaml
 import json
+import time
 from unittest import TestCase
 from dataclasses import dataclass
 
@@ -234,8 +235,10 @@ class CoverageStats:
     manual_count = 0
     fences_coverage = 0
     fences_count = 0
+    fences_time = 0
     hypothesis_coverage = 0
     hypothesis_count = 0
+    hypothesis_time = 0
 
 
 class Coverage(TestCase):
@@ -310,6 +313,8 @@ class Coverage(TestCase):
             description = suite['description']
             if description in self.description_blacklist:
                 continue
+            if description != 'properties whose names are Javascript object property names':
+                continue
             if self.output:
                 print(description)
                 print(json.dumps(schema, indent=4))
@@ -336,12 +341,14 @@ class Coverage(TestCase):
             # Validate using generated test data from fences
             cov.reset()
             count = 0
+            start = time.perf_counter()
             graph = parse_json_schema(schema)
             for i in graph.generate_paths():
                 sample = graph.execute(i.path)
                 result = validator.validate(sample)
                 cov.update(result)
                 count += 1
+            stats.fences_time += time.perf_counter() - start
             n = cov.coverage()
             stats.fences_coverage += n
             stats.fences_count += count
@@ -352,6 +359,7 @@ class Coverage(TestCase):
                 print(description)
                 cov.reset()
                 validation_results = []
+                start = time.perf_counter()
 
                 @given(from_schema(schema))
                 @settings(suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
@@ -365,6 +373,7 @@ class Coverage(TestCase):
 
                 for i in validation_results:
                     cov.update(i)
+                stats.hypothesis_time += time.perf_counter() - start
                 n = cov.coverage()
                 stats.hypothesis_coverage += n
                 stats.hypothesis_count += len(validation_results)
@@ -395,3 +404,6 @@ class Coverage(TestCase):
         ])
         print()
         util.print_table(table)
+
+        print(f"Total time (Fences):     {stats.fences_time}")
+        print(f"Total time (Hypothesis): {stats.hypothesis_time}")

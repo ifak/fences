@@ -10,13 +10,16 @@ import os
 import yaml
 import json
 import shutil
+import time
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 TEST_DATA_DIR = os.path.join(SCRIPT_DIR, 'test-data')
 TEST_DATA_DIR_VALID = os.path.join(TEST_DATA_DIR, 'valid')
 TEST_DATA_DIR_INVALID = os.path.join(TEST_DATA_DIR, 'invalid')
 def main():
+    # Setting these to true will interfere with the time measurement
     save_to_file = False
+    validate = False
     if save_to_file:
         # Remove old data if any
         if os.path.exists(TEST_DATA_DIR):
@@ -31,6 +34,7 @@ def main():
     jst_conf = json_schema_tool.schema.ParseConfig()
     jst_conf.raise_on_unknown_format = False
     validator = json_schema_tool.parse_schema(schema, jst_conf)
+    start = time.perf_counter()
 
     print("Normalize...")
     schema = normalize(schema, False)
@@ -45,7 +49,10 @@ def main():
     mat = ConfusionMatrix()
     for idx, i in enumerate(graph.generate_paths()):
         sample = graph.execute(i.path)
-        ok = validator.validate(sample).ok
+        if validate:
+            ok = validator.validate(sample).ok
+        else:
+            ok = True
         if i.is_valid:
             path = os.path.join(TEST_DATA_DIR, "valid", f"{idx}.json")
             if ok:
@@ -62,6 +69,8 @@ def main():
         if save_to_file:
             json.dump(sample, open(path, "w"), indent=2)
 
+    elapsed = int(time.perf_counter() - start)
+    print(f"Took {elapsed} seconds")
     mat.print()
 
 if __name__ == "__main__":
