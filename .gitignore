@@ -3,3 +3,5 @@ __pycache__
 fences/regex/grammar.py
 test-data
 examples/asset_administration_shell/aas_norm.yml
+.venv
+.hypothesis
