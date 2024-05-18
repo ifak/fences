@@ -35,8 +35,6 @@ def render(node: Node) -> pydot.Dot:
                 attrs = {
                     'label': idx
                 }
-                if transition.is_inverting:
-                    attrs['arrowhead'] = 'empty'
                 graph.add_edge(pydot.Edge(str(id(i)), str(id(transition.target)), **attrs))
 
     return graph

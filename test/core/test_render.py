@@ -14,6 +14,6 @@ class RenderTest(TestCase):
         leaf = NoOpLeaf(None, True)
         ref = Reference('foo', 'bar')
         root.add_transition(child)
-        child.add_transition(leaf, True)
+        child.add_transition(leaf)
         child.add_transition(ref)
         render(root)
