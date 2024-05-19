@@ -268,6 +268,18 @@ class TestSpecial(TestGenerateBase):
         }
         self.check(schema, strict_invalid=False)
 
+    def test_unsatisfiable(self):
+        schema = {
+            'type': 'object',
+            'properties': {
+                'a': False
+            },
+            'required': ['a']
+        }
+        # TODO : We only got invalid leafs except for the FetchOutput leaf
+        #        This results in fences thinking the path would be valid
+        # self.check(schema, debug=True)
+
     def test_dependent_required(self):
         schema = {
             "dependentRequired": {

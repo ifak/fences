@@ -131,8 +131,7 @@ class GeneratePathsTest(TestCase):
         child2 = NoOpLeaf('child_2', False)
         root.add_transition(child1)
         root.add_transition(child2)
-        with self.assertRaises(FencesException):
-            for _ in root.generate_paths(): pass
+        self.assertEqual(len(list(root.generate_paths())), 1)
 
     def test_no_valid_leaf2(self):
         root = NoOpDecision('root', True)
@@ -148,8 +147,7 @@ class GeneratePathsTest(TestCase):
         subroot1.add_transition(child12)
         subroot2.add_transition(child21)
         subroot2.add_transition(child22)
-        with self.assertRaises(FencesException):
-            for _ in root.generate_paths(): pass
+        self.assertEqual(len(list(root.generate_paths())), 2)
 
 class OptimizeTest(TestCase):
 

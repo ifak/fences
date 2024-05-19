@@ -17,8 +17,7 @@ class Node:
     def __init__(self, id: Optional[str] = None) -> None:
         self.id = id
         self.incoming_transitions: List["IncomingTransition"] = []
-        self._has_valid_successors: False
-        self._has_invalid_successors: False
+        self._has_valid_leafs: bool = False
 
     def apply(self, data: any) -> any:
         """
@@ -130,10 +129,6 @@ class Node:
     def _generate(self, result_path: Path, already_reached: Set):
         already_reached.add(id(self))
 
-        if isinstance(self, Leaf) and not self.is_valid:
-            raise InternalException(
-                f"Decision without valid leaf detected! {self.description()}")
-
         if not isinstance(self, Decision):
             return
         if not self.outgoing_transitions:
@@ -148,17 +143,20 @@ class Node:
             min_paths = float('inf')
             for idx, transition in enumerate(self.outgoing_transitions):
                 target = transition.target
-                if transition._num_paths < min_paths:
-                    if not target._has_valid_successors:
-                        continue
+                if transition._num_paths < min_paths and target._has_valid_leafs:
                     selected = idx
                     min_paths = transition._num_paths
+            # No satisfiable transition found, fallback to an un-satisfiable one
             if selected is None:
-                raise InternalException(
-                    f"Decision without valid leaf detected ' (id={self.id})")
+                print("No valid leaf detected, falling back to invalid one")
+                for idx, transition in enumerate(self.outgoing_transitions):
+                    target = transition.target
+                    if transition._num_paths < min_paths:
+                        selected = idx
+                        min_paths = transition._num_paths
 
             result_path.append(selected)
-            transition = self.outgoing_transitions[selected]
+            transition: OutgoingTransition = self.outgoing_transitions[selected]
             transition._num_paths += 1
             transition.target._generate(result_path, already_reached)
 
@@ -199,23 +197,23 @@ class Node:
             transition._num_paths += 1
             transition.target._forward(backward_path, forward_path, visited)
 
-    def _reset_stats(self, visited: Set[str]):
+    def _collect(self, visited: Set[str], valid_leafs: List["Leaf"], invalid_leafs: List["Leaf"]):
         if id(self) in visited:
             return
         visited.add(id(self))
 
         if isinstance(self, Leaf):
-            self._has_valid_successors = self.is_valid
-            self._has_invalid_successors = not self.is_valid
+            if self.is_valid:
+                valid_leafs.append(self)
+            else:
+                invalid_leafs.append(self)
+            self._has_valid_leafs = self.is_valid
         else:
             assert isinstance(self, Decision)
-
-            self._has_valid_successors = False
-            self._has_invalid_successors = False
+            self._has_valid_leafs = False
             for i in self.outgoing_transitions:
-                i.target._reset_stats(visited)
-                self._has_valid_successors = self._has_valid_successors or i.target._has_valid_successors
-                self._has_invalid_successors = self._has_invalid_successors or i.target._has_invalid_successors
+                i.target._collect(visited, valid_leafs, invalid_leafs)
+                self._has_valid_leafs = self._has_valid_leafs or i.target._has_valid_leafs
 
     def generate_paths(self) -> Generator[ResultEntry, None, None]:
         """
@@ -223,24 +221,14 @@ class Node:
         Execute a path using execute().
         """
 
+        # Reset counter, collect leafs
+        visited = set()
         valid_nodes: List[Leaf] = []
         invalid_nodes: List[Leaf] = []
+        self._collect(visited, valid_nodes, invalid_nodes)
 
-        # Reset counter, collect leafs
-        for node in self.items():
-            if isinstance(node, Leaf):
-                if node.is_valid:
-                    valid_nodes.append(node)
-                else:
-                    invalid_nodes.append(node)
-            if isinstance(node, Decision):
-                for i in node.outgoing_transitions:
-                    i._num_paths = 0
-
+        # Visit valid nodes first
         to_visit = valid_nodes + invalid_nodes
-
-        visited = set()
-        self._reset_stats(visited)
 
         while to_visit:
             # print(f"{len(to_visit)} nodes remaining")
