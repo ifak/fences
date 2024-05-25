@@ -19,10 +19,7 @@ class GenerateTestCase(unittest.TestCase):
             test_case: TestCase = graph.execute(i.path)
             request = test_case.to_request()
             if debug:
-                print(f"{request.method.upper()} {request.path}")
-                if request.body:
-                    print(f"  BODY: {len(request.body)} bytes")
-                    print(f"        {request.body}")
+                request.dump()
 
     def test_simple(self):
         schema = {
@@ -50,6 +47,15 @@ class GenerateTestCase(unittest.TestCase):
                             'in': 'query',
                             'schema': {'type': 'number'}
                         }],
+                        'requestBody': {
+                            'content': {
+                                'application/json': {
+                                    'schema': {
+                                        'const': 'foo'
+                                    }
+                                }
+                            }
+                        },
                         'responses': {}
                     }
                 }

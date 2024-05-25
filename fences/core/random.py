@@ -18,7 +18,7 @@ def generate_random_string(properties: StringProperties) -> str:
     if properties.max_length is not None:
         assert properties.min_length <= properties.max_length
     if properties.pattern is None:
-        return "x" * (properties.min_length+1)
+        return "x" * properties.min_length
     else:
         graph = parse(str(properties.pattern))
         result = None

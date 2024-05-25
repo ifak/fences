@@ -71,7 +71,9 @@ _inverters = {
     #'required': lambda x: {'type': ['object']},
     'items': _invert_items,
     'minItems': lambda x: {'type': 'array', 'maxItems': x},
-    'pattern': lambda x: {'type': 'string', 'pattern': f"!({x})"}
+    'maxItems': lambda x: {'type': 'array', 'minItems': x},
+    'pattern': lambda x: {'type': 'string', 'pattern': f"!({x})"},
+    'format': lambda x: {},
 }
 
 
@@ -132,6 +134,7 @@ _simple_mergers = {
     'deprecated': lambda a, b: a or b,
     'NOT_enum': lambda a, b: a + b,
     'enum': _merge_enums,
+    'example': lambda _, __: None
 }
 
 

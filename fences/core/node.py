@@ -24,7 +24,7 @@ class Node:
         Applies to node's operation to the given data
         (Meant to be overridden)
         """
-        raise NotImplemented()  # pragma: no cover
+        raise NotImplementedError()  # pragma: no cover
 
     def description(self) -> Optional[str]:
         """

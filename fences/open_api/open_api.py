@@ -62,9 +62,11 @@ class Parameter:
 
     @classmethod
     def from_dict(cls: "Parameter", data: Any, json_path: str) -> "Parameter":
+        pos = ParameterPosition(safe_dict_lookup(data, 'in', str, json_path))
         return cls(
             name=safe_dict_lookup(data, 'name', str, json_path),
-            position=ParameterPosition(safe_dict_lookup(data, 'in', str, json_path)),            required=safe_dict_lookup(data, "required", bool, json_path, True),
+            position=pos,
+            required=safe_dict_lookup(data, "required", bool, json_path, pos == ParameterPosition.PATH),
             style=ParameterStyle(safe_dict_lookup(data, 'style', str, json_path, ParameterStyle.SIMPLE.value)),
             explode=safe_dict_lookup(data, 'explode', bool, json_path, False),
             schema=safe_dict_lookup(data, 'schema', dict, json_path),
@@ -92,9 +94,9 @@ class RequestBody:
         else:
             json_content = safe_dict_lookup(content, json_content_type, dict, json_path)
         return cls(
-            description=safe_dict_lookup(data, 'description', str, json_path),
+            description=safe_dict_lookup(data, 'description', str, json_path, ''),
             required=safe_dict_lookup(data, 'required', bool, json_path, True),
-            schema=safe_dict_lookup(json_content, 'schema', dict, json_path, None)
+            schema=safe_dict_lookup(json_content, 'schema', dict, json_path, {})
         )
 
 
@@ -140,24 +142,15 @@ class Operation:
     def from_dict(cls: "Operation", method: str, data: Any, json_path: str, resolver: Resolver) -> "Operation":
         assert_type(data, dict, json_path)
 
-        parameters_raw: List[any] = safe_dict_lookup(data, 'parameters', list, json_path, [])
-        parameters: List[Parameter] = []
-        seen = set()
-
-        for i, param_data in enumerate(parameters_raw):
-            param: Parameter = Parameter.from_dict(param_data, json_path + '.parameters.' + str(i))
-            key = (param.name, param.position)
-            if key in seen:
-                raise OpenApiException(f"Duplicate parameter {param.name} at {json_path}/{i}")
-            seen.add(key)
-            parameters.append(param)
-
         request_body = safe_dict_lookup(data, 'requestBody', dict, json_path, None)
         return cls(
             operation_id=safe_dict_lookup(data, 'operationId', str, json_path),
             summary=safe_dict_lookup(data, 'summary', str, json_path, ''),
             method=method,
-            parameters=parameters,
+            parameters=[
+                Parameter.from_dict(i, json_path + '.parameters.' + str(idx))
+                for idx, i in enumerate(safe_dict_lookup(data, 'parameters', list, json_path, []))
+            ],
             request_body=RequestBody.from_dict(request_body, json_path + '.' + 'requestBody') if request_body is not None else None,
             responses=[
                 Response.from_dict(k, v, json_path + '.' + k)

@@ -15281,7 +15281,7 @@ components:
         dataSpecificationContent:
           $ref: '#/components/schemas/DataSpecificationContent_choice'
     DataSpecificationContent_choice:
-      oneOf:
+      anyOf:
       - $ref: '#/components/schemas/DataSpecificationIec61360'
     DataSpecificationIec61360:
       allOf:
@@ -15535,11 +15535,11 @@ components:
           $ref: '#/components/schemas/PagedResult_paging_metadata'
     Submodel:
       allOf:
-      - $ref: '#/components/schemas/Identifiable'
+#      - $ref: '#/components/schemas/Identifiable'
       - $ref: '#/components/schemas/HasKind'
-      - $ref: '#/components/schemas/HasSemantics'
-      - $ref: '#/components/schemas/Qualifiable'
-      - $ref: '#/components/schemas/HasDataSpecification'
+#      - $ref: '#/components/schemas/HasSemantics'
+#      - $ref: '#/components/schemas/Qualifiable'
+#      - $ref: '#/components/schemas/HasDataSpecification'
       - properties:
           submodelElements:
             minItems: 1
@@ -15598,7 +15598,7 @@ components:
       - TemplateQualifier
       - ValueQualifier
     SubmodelElement_choice:
-      oneOf:
+      anyOf:
       - $ref: '#/components/schemas/RelationshipElement'
       - $ref: '#/components/schemas/AnnotatedRelationshipElement'
       - $ref: '#/components/schemas/BasicEventElement'
@@ -15650,7 +15650,7 @@ components:
             pattern: AnnotatedRelationshipElement
             type: string
     DataElement_choice:
-      oneOf:
+      anyOf:
       - $ref: '#/components/schemas/Blob'
       - $ref: '#/components/schemas/File'
       - $ref: '#/components/schemas/MultiLanguageProperty'
@@ -15960,7 +15960,7 @@ components:
     SubmodelElementMetadata:
       allOf:
       - $ref: '#/components/schemas/SubmodelElementAttributes'
-      oneOf:
+      anyOf:
       - $ref: '#/components/schemas/BlobMetadata'
       - $ref: '#/components/schemas/FileMetadata'
       - $ref: '#/components/schemas/CapabilityMetadata'
@@ -16073,7 +16073,7 @@ components:
             items:
               $ref: '#/components/schemas/SubmodelElementValue'
     SubmodelElementValue:
-      oneOf:
+      anyOf:
       - $ref: '#/components/schemas/BasicEventElementValue'
       - $ref: '#/components/schemas/PropertyValue'
       - $ref: '#/components/schemas/MultiLanguagePropertyValue'
@@ -16103,7 +16103,7 @@ components:
           items:
             $ref: '#/components/schemas/Key'
     PropertyValue:
-      oneOf:
+      anyOf:
       - $ref: '#/components/schemas/StringValue'
       - $ref: '#/components/schemas/NumberValue'
       - $ref: '#/components/schemas/BooleanValue'
