@@ -51,11 +51,14 @@ class TestCase:
         headers: ListOfPairs = self.headers.copy()
         # TODO: content type should not be hardcoded
         headers.append(('content-type', 'application/json'))
+        body = None
+        if self.body:
+            body = json.dumps(self.body)
         return Request(
             path=path,
             method=self.operation.method,
             headers=headers,
-            body=self.body,
+            body=body,
         )
 
 
@@ -134,12 +137,12 @@ class SampleCache:
         samples = Samples()
         for i in graph.generate_paths():
             sample = graph.execute(i.path)
-            if isinstance(sample, (str, int, float)) and not isinstance(sample, bool):
+            if sample is not None:
                 if i.is_valid:
                     samples.valid.append(sample)
                 else:
                     samples.invalid.append(sample)
-            if len(samples.valid) + len(samples.invalid) > 20:
+            if len(samples.valid) + len(samples.invalid) > 50:
                 break
         if not samples.valid and not samples.invalid:
             raise Exception(f"Schema has no string instances")

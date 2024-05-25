@@ -193,6 +193,6 @@ class OpenApi:
                 Path.from_dict(path_name, path_info, 'paths.' + path_name, resolver)
                 for path_name, path_info in safe_dict_lookup(data, 'paths', dict, '/').items()
             ],
-            components=safe_dict_lookup(data, 'components', dict, '/'),
+            components=safe_dict_lookup(data, 'components', dict, '/', {}),
         )
         return api

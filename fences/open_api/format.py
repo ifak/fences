@@ -24,7 +24,7 @@ def _format_simple(value: any, explode: bool) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     if isinstance(value, list):
-        return ",".join(value)
+        return ",".join(str(v) for v in value)
     if isinstance(value, dict):
         if explode:
             values = [f"{k}={v}" for k, v in value.items()]
