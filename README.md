@@ -353,8 +353,7 @@ description = {
 
 graph = parse_open_api(description)
 for i in graph.generate_paths():
-    test_case = graph.execute(i.path)
-    request = test_case.to_request()
+    request = graph.execute(i.path)
     request.dump()
 ```
 
@@ -403,13 +402,11 @@ PATCH /videos/0
 PATCH /videos/0
   BODY: true
 PATCH /videos/0
-PATCH /videos/0
-PATCH /videos/0
 ```
 </details>
 
-Please note, that Fences does not include a client to execute these tests.
-You can do this on your own, for example using the `requests` library:
+You can execute the generated tests using the `request.execute()` method.
+Please note, that you need to install the `requests` library for this.
 
 ```python
 import requests
@@ -418,15 +415,9 @@ import requests
 
 graph = parse_open_api(description)
 for i in graph.generate_paths():
-    test_case = graph.execute(i.path)
-    request = test_case.to_request()
+    request = graph.execute(i.path)
     request.dump()
-    requests.request(
-        url='http://localhost:8080' + test_case.path,
-        method=test_case.operation.method,
-        data=request.body,
-        headers=dict(request.headers),
-    )
+    request.execute('http://localhost:8080')
 ```
 
 </details>

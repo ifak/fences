@@ -1,4 +1,4 @@
-from fences.open_api.generate import parse, TestCase
+from fences.open_api.generate import parse, Request
 from fences.core.render import render
 
 import unittest
@@ -16,8 +16,7 @@ class GenerateTestCase(unittest.TestCase):
             render(graph).write_svg('graph.svg')
 
         for i in graph.generate_paths():
-            test_case: TestCase = graph.execute(i.path)
-            request = test_case.to_request()
+            request: Request = graph.execute(i.path)
             if debug:
                 request.dump()
 
