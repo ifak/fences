@@ -71,7 +71,11 @@ _inverters = {
     #'required': lambda x: {'type': ['object']},
     'items': _invert_items,
     'minItems': lambda x: {'type': 'array', 'maxItems': x},
-    'pattern': lambda x: {'type': 'string', 'pattern': f"!({x})"}
+    'pattern': lambda x: {'type': 'string', 'pattern': f"!({x})"},
+    # Ignore descriptive annotations
+    'description': lambda x: {},
+    'title': lambda x: {},
+    '$comment': lambda x: {},
 }
 
 
