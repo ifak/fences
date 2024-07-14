@@ -1,14 +1,15 @@
 from typing import Set, Dict, List, Optional, Union
 
 from .exceptions import JsonSchemaException
-from .config import Config
+from .config import Config, FormatSamples
 from .json_pointer import JsonPointer
-from ..core.random import generate_random_string, StringProperties, generate_random_format
+from ..core.random import generate_random_string, StringProperties
 from .normalize import normalize
 
 from fences.core.node import Decision, Leaf, Node, Reference, NoOpLeaf, NoOpDecision
 
 from dataclasses import dataclass
+import base64
 
 
 @dataclass
@@ -21,6 +22,8 @@ class KeyReference:
         self.ref[self.key] = value
         self.has_value = True
 
+    def get(self):
+        return self.ref[self.key]
 
 class SetValueLeaf(Leaf):
 
@@ -106,7 +109,7 @@ def default_config():
     return Config(
         key_handlers={
             'enum': parse_enum,
-            'NOT_enum': parse_not_enum,
+            'NOT_enum': parse_enum,
             '$ref': parse_reference,
         },
         type_handlers={
@@ -126,6 +129,46 @@ def default_config():
             'array': [[]]
         },
         normalize=True,
+    
+        # From https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
+        format_samples = {
+            "datetime": FormatSamples(
+                valid=["2018-11-13T20:20:39+00:00"],
+                invalid=[]
+            ),
+            "time": FormatSamples(
+                valid=["20:20:39+00:00"],
+                invalid=[]
+            ),
+            "date": FormatSamples(
+                valid=["2018-11-13"],
+                invalid=[]
+            ),
+            "duration": FormatSamples(
+                valid=["P3D"],
+                invalid=[]
+            ),
+            "email": FormatSamples(
+                valid=["test@example.com"],
+                invalid=[]
+            ),
+            "hostname": FormatSamples(
+                valid=["example.com"],
+                invalid=[]
+            ),
+            "ipv4": FormatSamples(
+                valid=["127.0.0.1"],
+                invalid=[]
+            ),
+            "ipv6": FormatSamples(
+                valid=["2001:db8::8a2e:370:7334"],
+                invalid=[]
+            ),
+            "uuid": FormatSamples(
+                valid=["3e4666bf-d5e5-4aa7-b8ce-cefe41c7568a"],
+                invalid=[]
+            ),
+        }
     )
 
 
@@ -172,34 +215,19 @@ def _read_list(data: dict, key: str, unparsed_keys: Set[str], pointer: JsonPoint
     return _read_typesafe(data, key, unparsed_keys, list, 'list', pointer, default)
 
 
-def parse_const(data, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    value = data['const']
-    unparsed_keys.remove('const')
-
-    root = NoOpDecision(str(path), False)
-    root.add_transition(SetValueLeaf(None, True, value))
-    root.add_transition(SetValueLeaf(None, False, f"{value}_INvALID"))
-    return root
-
-
-def parse_not_enum(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    values = _read_list(data, 'NOT_enum', unparsed_keys, path)
-    return _parse_enum(values, path, True)
-
-
 def parse_enum(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    values = _read_list(data, 'enum', unparsed_keys, path)
-    return _parse_enum(values, path, False)
-
-
-def _parse_enum(values: list, path: JsonPointer, invert: bool) -> Node:
+    invalid_values = set(_read_list(data, 'NOT_enum', unparsed_keys, path, []))
+    valid_values = set(_read_list(data, 'enum', unparsed_keys, path, []))
+    invalid_values = invalid_values - valid_values
+    valid_values = valid_values - invalid_values
     root = NoOpDecision(str(path), False)
     max_length = 0
-    for value in values:
-        root.add_transition(SetValueLeaf(None, not invert, value))
+    for value in valid_values:
+        root.add_transition(SetValueLeaf(None, True, value))
         max_length = max(max_length, len(str(value)))
-    root.add_transition(SetValueLeaf(
-        None, invert, "#" * (max_length+1)))
+    invalid_values.add("#" * (max_length+1))
+    for value in invalid_values:
+        root.add_transition(SetValueLeaf(None, False, value))
     return root
 
 
@@ -271,27 +299,38 @@ def parse_object(data: dict, config: Config, unparsed_keys: Set[str], path: Json
 
 
 def parse_string(data: dict, config: Config, unparsed_keys: Set[str], path: JsonPointer) -> Node:
-    root = NoOpDecision()
     pattern = _read_string(data, 'pattern', unparsed_keys, path, '')
     content_media_type = _read_string(data, 'contentMediaType', unparsed_keys, path, '')
     content_encoding = _read_string(data, 'contentEncoding', unparsed_keys, path, '')
     content_schema = _read_dict(data, 'contentSchema', unparsed_keys, path, {})
+    min_length=_read_int(data, 'minLength', unparsed_keys, path, 0)
+    max_length=_read_int(data, 'maxLength', unparsed_keys, path, float("inf"))
     if pattern:
         regex = pattern
     else:
         regex = None
-    # TODO: use format
     format = _read_string(data, 'format', unparsed_keys, path, None)
-    if format is None:
+    root = NoOpDecision()
+    if format is None or format == "byte":
         properties = StringProperties(
-            min_length=_read_int(data, 'minLength', unparsed_keys, path, 0),
-            max_length=_read_int(data, 'maxLength', unparsed_keys, path, float("inf")),
+            min_length=min_length,
+            max_length=max_length,
             # pattern=regex,
         )
         value = generate_random_string(properties)
+        if format == "byte":
+            root.add_transition(SetValueLeaf(None, False, value))
+            value = base64.urlsafe_b64encode(value.encode()).decode()
+        root.add_transition(SetValueLeaf(None, True, value))
     else:
-        value = generate_random_format(format)
-    root.add_transition(SetValueLeaf(None, True, value))
+        try:
+            samples = config.format_samples[format]
+        except KeyError:
+            raise JsonSchemaException(f"Unknown format {format}", path)
+        for i in samples.valid:
+            root.add_transition(SetValueLeaf(None, True, i))
+        for i in samples.invalid:
+            root.add_transition(SetValueLeaf(None, False, i))
     return root
 
 def generate_default_samples(config: Config) -> Node:
@@ -408,6 +447,7 @@ def parse_any_of_entry(entry: dict, config: Config, pointer: JsonPointer) -> Nod
     root = NoOpDecision(None, False)
     if 'type' in entry:
         types = entry['type']
+        unparsed_keys.remove('type')
         if isinstance(types, str):
             types = [types]
         types = set(types)
@@ -429,6 +469,12 @@ def parse_any_of_entry(entry: dict, config: Config, pointer: JsonPointer) -> Nod
             for sample in samples:
                 root.add_transition(SetValueLeaf(None, False, sample))
 
+    for i in ['deprecated', 'discriminator', 'check']:
+        try:
+            unparsed_keys.remove(i)
+        except KeyError:
+            pass
+
     # if unparsed_keys:
     #     raise JsonSchemaException(f"Unknown keys {unparsed_keys} at '{path}'", path)
     return root
@@ -440,9 +486,65 @@ def parse_dict(data: dict, config: Config, pointer: JsonPointer) -> Node:
     any_of = _read_list(data, 'anyOf', unparsed_keys, pointer)
 
     for idx, entry in enumerate(any_of):
-        root.add_transition(parse_any_of_entry(
+        result = parse_any_of_entry(
             entry, config, pointer + 'anyOf' + idx
-        ))
+        )
+        if 'check' in entry:
+            sub_root = NoOpDecision(all_transitions=True)
+            sub_root.add_transition(result)
+            check = entry['check']
+            for ch in check:
+                if ch == 'Constraint_AASd-124':
+                    class FixConstraint124(Leaf):
+                        def apply(self, data: KeyReference) -> any:
+                            try:
+                                keys = data.get()['keys']
+                            except (KeyError, TypeError):
+                                return data
+                            if not isinstance(keys, list):
+                                return data
+                            keys.append({
+                                'type': 'GlobalReference',
+                                'value': 'xyz'
+                            })
+                            return data
+                    sub_root.add_transition(FixConstraint124(is_valid=True))
+                elif ch == 'Constraint_AASd-125':
+                    class FixConstraint125(Leaf):
+                        def apply(self, data: KeyReference) -> any:
+                            try:
+                                keys: list = data.get()['keys']
+                            except (KeyError, TypeError):
+                                return data
+                            if isinstance(keys, list):
+                               for key in keys[1:]:
+                                 if isinstance(key, dict):
+                                        key['type'] = 'Range'
+                            return data
+                    sub_root.add_transition(FixConstraint125(is_valid=True))
+                elif ch == 'Constraint_AASd-107':
+                    class FixConstraint107(Leaf):
+                        def apply(self, data: KeyReference) -> any:
+                            l: list = data.get()
+                            try:
+                                l['semanticIdListElement'] = l['value'][0]['semanticId']
+                            except (KeyError, TypeError):
+                                pass
+                            return data
+                    sub_root.add_transition(FixConstraint107(is_valid=True))
+                elif ch == 'Constraint_AASd-108':
+                    class FixConstraint108(Leaf):
+                        def apply(self, data: KeyReference) -> any:
+                            l: list = data.get()
+                            try:
+                                l['typeValueListElement'] = l['value'][0]['modelType']
+                            except (KeyError, TypeError):
+                                pass
+                            return data
+                    sub_root.add_transition(FixConstraint108(is_valid=True))
+            result = sub_root
+
+        root.add_transition(result)
 
     return root
 

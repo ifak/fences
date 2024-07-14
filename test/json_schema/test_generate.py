@@ -1,4 +1,5 @@
 from fences.json_schema import parse, normalize
+from fences.json_schema.config import FormatSamples
 from fences.core.debug import check_consistency
 from jsonschema import Draft202012Validator, ValidationError
 import unittest
@@ -441,11 +442,16 @@ class AasTest(TestGenerateBase):
     def test_aas(self):
         with open(os.path.join(SCRIPT_DIR, '..', 'fixtures', 'json', 'aas_small.yaml')) as file:
             schema = yaml.safe_load(file)
-        schema = normalize.normalize(schema, False)
-        schema['$schema'] = 'https://json-schema.org/draft/2020-12/schema'
         config = parse.default_config()
-        config.normalize = False
-        graph = parse.parse(schema)
+        config.format_samples = {
+            'xs:decimal': FormatSamples(
+                valid=["1.0"],
+            ),
+            'xs:integer': FormatSamples(
+                valid=["42"],
+            ),
+        }
+        graph = parse.parse(schema, config)
         check_consistency(graph)
         num_samples = 0
         for i in graph.generate_paths():

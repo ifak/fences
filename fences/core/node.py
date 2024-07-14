@@ -17,7 +17,6 @@ class Node:
     def __init__(self, id: Optional[str] = None) -> None:
         self.id = id
         self.incoming_transitions: List["IncomingTransition"] = []
-        self._has_valid_leafs: bool = False
 
     def apply(self, data: any) -> any:
         """
@@ -126,31 +125,33 @@ class Node:
             idx = path[path_idx]
             return self.outgoing_transitions[idx].target._execute(path, path_idx+1, data)
 
-    def _generate(self, result_path: Path, already_reached: Set):
+    def _generate(self, result_path: Path, already_reached: Set) -> bool:
         already_reached.add(id(self))
 
         if not isinstance(self, Decision):
-            return
+            return True
         if not self.outgoing_transitions:
-            return
+            return True
+
+        satisfiable = True
 
         if self.all_transitions:
             for transition in self.outgoing_transitions:
                 transition._num_paths += 1
-                transition.target._generate(result_path, already_reached)
+                sub_satisfiable = transition.target._generate(result_path, already_reached)
+                satisfiable = satisfiable and sub_satisfiable
         else:
             selected = None
             min_paths = float('inf')
             for idx, transition in enumerate(self.outgoing_transitions):
-                target = transition.target
-                if transition._num_paths < min_paths and target._has_valid_leafs:
+                if transition._num_paths < min_paths and transition._satisfiable:
                     selected = idx
                     min_paths = transition._num_paths
             # No satisfiable transition found, fallback to an un-satisfiable one
             if selected is None:
-                print("No valid leaf detected, falling back to invalid one")
+                satisfiable = False
+                # print("No valid leaf detected, falling back to invalid one")
                 for idx, transition in enumerate(self.outgoing_transitions):
-                    target = transition.target
                     if transition._num_paths < min_paths:
                         selected = idx
                         min_paths = transition._num_paths
@@ -158,7 +159,9 @@ class Node:
             result_path.append(selected)
             transition: OutgoingTransition = self.outgoing_transitions[selected]
             transition._num_paths += 1
-            transition.target._generate(result_path, already_reached)
+            sub_satisfiable = transition.target._generate(result_path, already_reached)
+            satisfiable = satisfiable and sub_satisfiable
+        return satisfiable
 
     def _backward(self, path: Path, already_reached: Set) -> "Node":
         already_reached.add(id(self))
@@ -178,42 +181,40 @@ class Node:
         root = predecessor_transition.source._backward(path, already_reached)
         return root
 
-    def _forward(self, backward_path: Path, forward_path: Path, visited: Set):
+    def _forward(self, backward_path: Path, forward_path: Path, visited: Set) -> bool:
         if len(backward_path) == 0:
-            return
+            return True
         assert isinstance(self, Decision)
         path_idx = backward_path.pop(-1)
         if self.all_transitions:
+            satisfiable = True
             for idx, transition in enumerate(self.outgoing_transitions):
                 if idx == path_idx:
-                    transition.target._forward(
-                        backward_path, forward_path, visited)
+                    s = transition.target._forward(backward_path, forward_path, visited)
                 else:
                     transition._num_paths += 1
-                    transition.target._generate(forward_path, visited)
+                    s = transition.target._generate(forward_path, visited)
+                satisfiable = satisfiable and s
         else:
             transition = self.outgoing_transitions[path_idx]
             forward_path.append(path_idx)
             transition._num_paths += 1
-            transition.target._forward(backward_path, forward_path, visited)
+            satisfiable = transition.target._forward(backward_path, forward_path, visited)
 
-    def _collect(self, visited: Set[str], valid_leafs: List["Leaf"], invalid_leafs: List["Leaf"]):
-        if id(self) in visited:
-            return
-        visited.add(id(self))
+        return satisfiable
 
-        if isinstance(self, Leaf):
-            if self.is_valid:
-                valid_leafs.append(self)
-            else:
-                invalid_leafs.append(self)
-            self._has_valid_leafs = self.is_valid
-        else:
-            assert isinstance(self, Decision)
-            self._has_valid_leafs = False
-            for i in self.outgoing_transitions:
-                i.target._collect(visited, valid_leafs, invalid_leafs)
-                self._has_valid_leafs = self._has_valid_leafs or i.target._has_valid_leafs
+    def _mark_satisfiable(self):
+
+        if isinstance(self, Decision):
+            if self.all_transitions:
+                if any(not i._satisfiable for i in self.outgoing_transitions):
+                    return
+
+        for i in self.incoming_transitions:
+            out = i.outgoing_transition()
+            if not out._satisfiable:
+                out._satisfiable = True
+                i.source._mark_satisfiable()
 
     def generate_paths(self) -> Generator[ResultEntry, None, None]:
         """
@@ -222,10 +223,16 @@ class Node:
         """
 
         # Reset counter, collect leafs
-        visited = set()
         valid_nodes: List[Leaf] = []
         invalid_nodes: List[Leaf] = []
-        self._collect(visited, valid_nodes, invalid_nodes)
+        for i in self.items():
+            if isinstance(i, Leaf):
+                if i.is_valid:
+                    valid_nodes.append(i)
+                else:
+                    invalid_nodes.append(i)
+        for leaf in valid_nodes:
+            leaf._mark_satisfiable()
 
         # Visit valid nodes first
         to_visit = valid_nodes + invalid_nodes
@@ -241,10 +248,10 @@ class Node:
 
             # Follow path to the target node
             forward_path = []
-            root._forward(backward_path, forward_path, visited)
+            satisfiable = root._forward(backward_path, forward_path, visited)
 
             # Yield
-            yield ResultEntry(next, forward_path, next.is_valid)
+            yield ResultEntry(next, forward_path, next.is_valid and satisfiable)
 
             # Remove the visited nodes
             path_idx = 0
@@ -282,6 +289,7 @@ class OutgoingTransition:
     def __init__(self, target: Node) -> None:
         self.target = target
         self._num_paths: int = 0
+        self._satisfiable: bool = False
 
 
 class IncomingTransition:

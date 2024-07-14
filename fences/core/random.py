@@ -43,19 +43,3 @@ def generate_random_number(min_value: Optional[int] = None, max_value: Optional[
         max_value = +1000
     assert min_value <= max_value
     return random.randint(min_value, max_value)
-
-
-def generate_random_format(format: str) -> str:
-    # From https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
-    samples = {
-        "date-time": "2018-11-13T20:20:39+00:00",
-        "time": "20:20:39+00:00",
-        "date": "2018-11-13",
-        "duration": "P3D",
-        "email": "test@example.com",
-        "hostname": "example.com",
-        "ipv4": "127.0.0.1",
-        "ipv6": "2001:db8::8a2e:370:7334",
-        "uuid": "3e4666bf-d5e5-4aa7-b8ce-cefe41c7568a",
-    }
-    return samples.get(format, "")

@@ -1,5 +1,7 @@
 from typing import Any, Optional, List, Dict, Set, Any, Type
-from dataclasses import dataclass
+from typing_extensions import Self
+
+from dataclasses import dataclass, field
 from enum import Enum
 import warnings
 
@@ -33,8 +35,8 @@ class Info:
     title: str
 
     @classmethod
-    def from_dict(cls, data: Any, json_path: str) -> "Info":
-        return cls(
+    def from_dict(self, data: Any, json_path: str) -> Self:
+        return Info(
             title=safe_dict_lookup(data, 'title', str, json_path)
         )
 
@@ -61,15 +63,17 @@ class Parameter:
     schema: dict
 
     @classmethod
-    def from_dict(cls: "Parameter", data: Any, json_path: str) -> "Parameter":
+    def from_dict(self, components: Any, data: Any, json_path: str) -> Self:
         pos = ParameterPosition(safe_dict_lookup(data, 'in', str, json_path))
-        return cls(
+        schema = safe_dict_lookup(data, 'schema', dict, json_path)
+        schema['components'] = components
+        return Parameter(
             name=safe_dict_lookup(data, 'name', str, json_path),
             position=pos,
             required=safe_dict_lookup(data, "required", bool, json_path, pos == ParameterPosition.PATH),
             style=ParameterStyle(safe_dict_lookup(data, 'style', str, json_path, ParameterStyle.SIMPLE.value)),
             explode=safe_dict_lookup(data, 'explode', bool, json_path, False),
-            schema=safe_dict_lookup(data, 'schema', dict, json_path),
+            schema=schema
         )
 
 
@@ -80,7 +84,7 @@ class RequestBody:
     required: bool
 
     @classmethod
-    def from_dict(cls: "RequestBody", data: Any, json_path: str) -> "RequestBody":
+    def from_dict(self, components: Any, data: Any, json_path: str) -> Self:
         assert_type(data, dict, json_path)
         content = safe_dict_lookup(data, 'content', dict, json_path)
         json_content_type = 'application/json'
@@ -93,10 +97,12 @@ class RequestBody:
             json_content = {}
         else:
             json_content = safe_dict_lookup(content, json_content_type, dict, json_path)
-        return cls(
+        schema=safe_dict_lookup(json_content, 'schema', dict, json_path, {})
+        schema['components'] = components
+        return RequestBody(
             description=safe_dict_lookup(data, 'description', str, json_path, ''),
             required=safe_dict_lookup(data, 'required', bool, json_path, True),
-            schema=safe_dict_lookup(json_content, 'schema', dict, json_path, {})
+            schema=schema,
         )
 
 
@@ -106,7 +112,7 @@ class Response:
     schema: Optional[Dict]
 
     @classmethod
-    def from_dict(cls: "Response", code: str, data: Any, json_path) -> "Response":
+    def from_dict(self, code: str, data: Any, json_path) -> Self:
         content = safe_dict_lookup(data, 'content', dict, json_path, None)
         schema = None
         if content is not None:
@@ -122,7 +128,7 @@ class Response:
                 json_content = safe_dict_lookup(content, json_content_type, dict, json_path)
             schema = safe_dict_lookup(json_content, 'schema', dict, json_path, None)
 
-        return cls(
+        return Response(
             code=400 if code == 'default' else int(code),
             schema=schema,
         )
@@ -130,6 +136,7 @@ class Response:
 
 @dataclass
 class Operation:
+    path: str
     operation_id: str
     summary: str
     method: str
@@ -139,19 +146,20 @@ class Operation:
     tags: Set[str]
 
     @classmethod
-    def from_dict(cls: "Operation", method: str, data: Any, json_path: str, resolver: Resolver) -> "Operation":
+    def from_dict(self, components: dict, path: str, method: str, data: Any, json_path: str) -> Self:
         assert_type(data, dict, json_path)
 
         request_body = safe_dict_lookup(data, 'requestBody', dict, json_path, None)
-        return cls(
+        return Operation(
+            path=path,
             operation_id=safe_dict_lookup(data, 'operationId', str, json_path),
             summary=safe_dict_lookup(data, 'summary', str, json_path, ''),
             method=method,
             parameters=[
-                Parameter.from_dict(i, json_path + '.parameters.' + str(idx))
+                Parameter.from_dict(components, i, json_path + '.parameters.' + str(idx))
                 for idx, i in enumerate(safe_dict_lookup(data, 'parameters', list, json_path, []))
             ],
-            request_body=RequestBody.from_dict(request_body, json_path + '.' + 'requestBody') if request_body is not None else None,
+            request_body=RequestBody.from_dict(components, request_body, json_path + '.' + 'requestBody') if request_body is not None else None,
             responses=[
                 Response.from_dict(k, v, json_path + '.' + k)
                 for k, v in safe_dict_lookup(data, 'responses', dict, json_path).items()
@@ -166,12 +174,12 @@ class Path:
     operations: List[Operation]
 
     @classmethod
-    def from_dict(cls: "Path", path_name: str, data: Any, json_path: str, resolver: Resolver) -> "Path":
+    def from_dict(self, path_name: str, data: Any, json_path: str, resolver: Resolver) -> Self:
         assert_type(data, dict, json_path)
         operations: List[Operation] = []
         for k, v in assert_type(data, dict, json_path).items():
             operations.append(Operation.from_dict(k, v, json_path + '.' + k, resolver))
-        return cls(
+        return Path(
             path=path_name,
             operations=operations
         )
@@ -180,19 +188,17 @@ class Path:
 @dataclass
 class OpenApi:
     info: Info
-    paths: List[Path]
-    components: dict
+    operations: Dict[str, Operation] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls: "OpenApi", data: Any) -> "OpenApi":
+    def from_dict(self, data: Any) -> Self:
         assert_type(data, dict, '')
-        resolver = Resolver(data)
-        api = cls(
+        components=safe_dict_lookup(data, 'components', dict, '/', {})
+        api = OpenApi(
             info=Info.from_dict(safe_dict_lookup(data, 'info', dict, '/'), 'info'),
-            paths=[
-                Path.from_dict(path_name, path_info, 'paths.' + path_name, resolver)
-                for path_name, path_info in safe_dict_lookup(data, 'paths', dict, '/').items()
-            ],
-            components=safe_dict_lookup(data, 'components', dict, '/', {}),
         )
+        for path_name, path_info in safe_dict_lookup(data, 'paths', dict, '/').items():
+            for method, op_info in path_info.items():
+                op = Operation.from_dict(components, path_name, method, op_info, f'/{path_name}/{method}')
+                api.operations[op.operation_id] = op
         return api

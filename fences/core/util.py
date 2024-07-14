@@ -70,3 +70,15 @@ class ConfusionMatrix:
 
     def print(self):
         print_table(self.to_table())
+
+    def add(self, is_valid: bool, accepted: bool):
+        if is_valid:
+            if accepted:
+                self.valid_accepted += 1
+            else:
+                self.valid_rejected += 1
+        else:
+            if accepted:
+                self.invalid_accepted += 1
+            else:
+                self.invalid_rejected += 1

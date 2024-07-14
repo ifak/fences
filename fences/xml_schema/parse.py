@@ -72,6 +72,10 @@ def default_config() -> Config:
                 valid=lambda *_: [generate_random_number()],
                 invalid=lambda *_: ["bar"]
             ),
+            'bcpLangString': TypeGenerator(
+                valid=lambda *_: ['de', 'en'],
+                invalid=lambda *_: [ '' ],
+            )
         },
         restriction_handlers={
             'pattern': parse_string_restriction,

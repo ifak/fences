@@ -3011,15 +3011,6 @@ paths:
         schema:
           type: string
           format: byte
-      - name: aasIdentifier
-        in: path
-        description: The Asset Administration Shell’s unique id (UTF8-BASE64-URL-encoded)
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-          format: byte
       - name: idShortPath
         in: path
         description: IdShort path to the submodel element (dot-separated)
@@ -3097,15 +3088,6 @@ paths:
         schema:
           type: string
           format: byte
-      - name: aasIdentifier
-        in: path
-        description: The Asset Administration Shell’s unique id (UTF8-BASE64-URL-encoded)
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-          format: byte
       - name: idShortPath
         in: path
         description: IdShort path to the submodel element (dot-separated)
@@ -3170,15 +3152,6 @@ paths:
       - name: submodelIdentifier
         in: path
         description: The Submodel’s unique id (UTF8-BASE64-URL-encoded)
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-          format: byte
-      - name: aasIdentifier
-        in: path
-        description: The Asset Administration Shell’s unique id (UTF8-BASE64-URL-encoded)
         required: true
         style: simple
         explode: false
@@ -12703,15 +12676,6 @@ paths:
       summary: Synchronously invokes an Operation at a specified path
       operationId: InvokeOperation-ValueOnly_SubmodelRepo
       parameters:
-      - name: aasIdentifier
-        in: path
-        description: The Asset Administration Shell’s unique id (UTF8-BASE64-URL-encoded)
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-          format: byte
       - name: submodelIdentifier
         in: path
         description: The Submodel’s unique id (UTF8-BASE64-URL-encoded)
@@ -12876,15 +12840,6 @@ paths:
       summary: Asynchronously invokes an Operation at a specified path
       operationId: InvokeOperationAsync-ValueOnly_SubmodelRepo
       parameters:
-      - name: aasIdentifier
-        in: path
-        description: The Asset Administration Shell’s unique id (UTF8-BASE64-URL-encoded)
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
-          format: byte
       - name: submodelIdentifier
         in: path
         description: The Submodel’s unique id (UTF8-BASE64-URL-encoded)

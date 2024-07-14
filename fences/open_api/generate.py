@@ -1,7 +1,8 @@
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, TYPE_CHECKING, Union
 
 from .open_api import OpenApi, Operation, ParameterPosition, Parameter
 from .format import format_parameter_value
+from .exceptions import MissingDependencyException
 
 from fences.json_schema import parse as json_schema
 from fences.json_schema.normalize import normalize as normalize_schema
@@ -10,7 +11,10 @@ from fences.core.node import Node, NoOpDecision, Decision, Leaf, NoOpLeaf
 from dataclasses import dataclass, field
 from urllib.parse import urlencode
 import json
+from enum import IntEnum, auto
 
+if TYPE_CHECKING:
+    import requests  # optional dependency
 
 ListOfPairs = List[Tuple[any, any]]
 
@@ -24,28 +28,31 @@ class Request:
 
     def dump(self, body_max_chars=80):
         print(f"{self.operation.method.upper()} {self.path}")
-        if self.body:
+        if self.body is not None:
             if len(self.body) > body_max_chars:
                 b = self.body[:body_max_chars] + '...'
             else:
                 b = self.body
             print(f"  BODY: {b}")
 
-    def execute(self, host: str):
-        import requests  # optional dependency
+    def execute(self, host: str) -> "requests.models.Response":
+        try:
+            import requests  # optional dependency
+        except ImportError:
+            raise MissingDependencyException("Please install the requests library")
         if host.endswith('/'):
             host = host[:-1]
-        requests.request(
+        response = requests.request(
             url=host + self.path,
             method=self.operation.method,
             data=self.body,
             headers=dict(self.headers)
         )
+        return response
 
 
 @dataclass
 class TestCase:
-    path: str
     operation: Operation
     body: Optional[str] = None
     query_parameters: ListOfPairs = field(default_factory=list)
@@ -54,16 +61,19 @@ class TestCase:
     cookies: ListOfPairs = field(default_factory=list)
 
     def to_request(self) -> Request:
-        path = self.path
+        path = self.operation.path
         for key, value in self.path_parameters:
-            path = path.replace('{' + key + '}', value)
+            placeholder = '{' + key + '}'
+            assert placeholder in path, f"{placeholder}, {path}, {self.operation.operation_id}"
+            # assert value != "" # TODO
+            path = path.replace(placeholder, value)
         if self.query_parameters:
             path += "?" + urlencode(self.query_parameters)
         headers: ListOfPairs = self.headers.copy()
         # TODO: content type should not be hardcoded
         headers.append(('content-type', 'application/json'))
         body = None
-        if self.body:
+        if self.body is not None:
             body = json.dumps(self.body)
         return Request(
             path=path,
@@ -83,27 +93,26 @@ class ExtractRequestLeaf(Leaf):
 
 
 class StartTestCase(Decision):
-    def __init__(self, path: str, operation: Operation) -> None:
+    def __init__(self, operation: Operation) -> None:
         super().__init__(operation.operation_id, True)
         self.operation = operation
-        self.path = path
 
     def apply(self, data: any) -> any:
-        return TestCase(self.path, self.operation)
+        return TestCase(self.operation)
 
     def description(self) -> str:
         return "Start Test Case"
 
 
 class InsertParamLeaf(Leaf):
-    def __init__(self, is_valid: bool, parameter: Parameter, value: any) -> None:
+    def __init__(self, is_valid: bool, parameter: Parameter, raw_value: any) -> None:
         super().__init__(None, is_valid)
         self.parameter = parameter
-        self.value = value
-        self.formatted_value = format_parameter_value(parameter, value)
+        self.raw_value = raw_value
+        self.values = format_parameter_value(parameter, raw_value)
 
     def description(self) -> str:
-        return f"Insert {self.parameter.name} = {self.value} into {self.parameter.position.name}"
+        return f"Insert {self.parameter.name} = {self.raw_value} into {self.parameter.position.name}"
 
     def apply(self, data: TestCase) -> any:
         storage: ListOfPairs = {
@@ -112,7 +121,7 @@ class InsertParamLeaf(Leaf):
             ParameterPosition.PATH: data.path_parameters,
             ParameterPosition.COOKIE: data.cookies,
         }[self.parameter.position]
-        storage.extend(self.formatted_value)
+        storage.extend(self.values)
         return data
 
 
@@ -143,14 +152,14 @@ class SampleCache:
     def _to_key(self, schema: any) -> str:
         return json.dumps(schema)
 
-    def add(self, schema: any, components: Dict[str, any]) -> Samples:
+    def add(self, schema: any) -> Samples:
         key = self._to_key(schema)
         if key in self.samples:
             return self.samples[key]
 
         composite_schema = {
-            'components': components,
             'minLength': 1,
+            'minItems': 1,
             **schema,
         }
         composite_schema = normalize_schema(composite_schema, False)
@@ -160,48 +169,61 @@ class SampleCache:
         samples = Samples()
         for i in graph.generate_paths():
             sample = graph.execute(i.path)
-            if sample is not None:
-                if i.is_valid:
-                    samples.valid.append(sample)
-                else:
-                    samples.invalid.append(sample)
-            if len(samples.valid) + len(samples.invalid) > 50:
+            if sample is None:
+                continue
+            if i.is_valid:
+                samples.valid.append(sample)
+            else:
+                samples.invalid.append(sample)
+            if len(samples.valid) > 50 and len(samples.invalid) > 50:
                 break
         if not samples.valid and not samples.invalid:
-            raise Exception(f"Schema has no string instances")
+            raise Exception(f"Schema has no instances")
         self.samples[key] = samples
         return samples
 
+def generate_one(operation: Operation, sample_cache: SampleCache) -> Request:
+    test_case = TestCase(operation)
+    for param in operation.parameters:
+        pass
+    return test_case.to_request()
 
-def parse(open_api: any) -> Node:
-    openapi: OpenApi = OpenApi.from_dict(open_api)
-    sample_cache = SampleCache()
+def _is_suitable_for_path(sample: any) -> bool:
+    if isinstance(sample, list):
+        return len(sample) > 0
+    if isinstance(sample, dict):
+        return len(sample.keys()) > 0
+    if isinstance(sample, str):
+        return len(sample) > 0
+    if sample is None:
+        return False
+    return True
 
-    # Create graph
-    root = NoOpDecision()
-    for path in openapi.paths:
-        for operation in path.operations:
-            op_root = StartTestCase(path.path, operation)
-            for param in operation.parameters:
-                param_root = NoOpDecision(f"{operation.operation_id}/{param.name}")
-                samples = sample_cache.add(param.schema, openapi.components)
-                for sample in samples.valid:
-                    param_root.add_transition(InsertParamLeaf(True, param, sample))
-                for sample in samples.invalid:
-                    param_root.add_transition(InsertParamLeaf(False, param, sample))
-                if param.position != ParameterPosition.PATH:
-                    param_root.add_transition(NoOpLeaf(is_valid=not param.required))
-                op_root.add_transition(param_root)
-            if operation.request_body:
-                body_root = NoOpDecision('BODY')
-                bodies = sample_cache.add(operation.request_body.schema, openapi.components)
-                for body in bodies.valid:
-                    body_root.add_transition(InsertBodyLeaf(True, body))
-                for body in bodies.invalid:
-                    body_root.add_transition(InsertBodyLeaf(False, body))
-                body_root.add_transition(NoOpLeaf(is_valid=not operation.request_body.required))
-                op_root.add_transition(body_root)
-            op_root.add_transition(ExtractRequestLeaf())
-            root.add_transition(op_root)
+def parse_operation(operation: Operation, sample_cache: SampleCache, parameter_overwrites: Optional[Dict[str, any]] = None) -> Node:
+    op_root = StartTestCase(operation)
+    for param in operation.parameters:
+        param_root = NoOpDecision(f"{operation.operation_id}/{param.name}")
+        if parameter_overwrites and param.name in parameter_overwrites:
+            samples = Samples(valid=parameter_overwrites[param.name])
+        else:
+            samples = sample_cache.add(param.schema)
 
-    return root
+        for sample in samples.valid:
+            if param.position != ParameterPosition.PATH or _is_suitable_for_path(sample):
+                param_root.add_transition(InsertParamLeaf(True, param, sample))
+        for sample in samples.invalid:
+            if param.position != ParameterPosition.PATH or _is_suitable_for_path(sample):
+                param_root.add_transition(InsertParamLeaf(False, param, sample))
+        param_root.add_transition(NoOpLeaf(is_valid=not param.required))
+        op_root.add_transition(param_root)
+    if operation.request_body:
+        body_root = NoOpDecision('BODY')
+        bodies = sample_cache.add(operation.request_body.schema)
+        for body in bodies.valid:
+            body_root.add_transition(InsertBodyLeaf(True, body))
+        for body in bodies.invalid:
+            body_root.add_transition(InsertBodyLeaf(False, body))
+        body_root.add_transition(NoOpLeaf(is_valid=not operation.request_body.required))
+        op_root.add_transition(body_root)
+    op_root.add_transition(ExtractRequestLeaf())
+    return op_root

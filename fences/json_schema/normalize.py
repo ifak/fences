@@ -68,7 +68,6 @@ _inverters = {
     'properties': _invert_properties,
     'multipleOf': lambda x: {'type': ['number'], 'NOT_multipleOf': x},
     'required': lambda x: {'type': ['object'], 'properties': {i: False for i in x}},
-    #'required': lambda x: {'type': ['object']},
     'items': _invert_items,
     'minItems': lambda x: {'type': 'array', 'maxItems': x},
     'maxItems': lambda x: {'type': 'array', 'minItems': x},
@@ -117,6 +116,9 @@ def _float_gcd(a, b, rtol = 1e-05, atol = 1e-08):
         a, b = b, a % b
     return a
 
+def _ignore(_, __) -> None:
+    return None
+
 _simple_mergers = {
     'required': lambda a, b: list(set(a) | set(b)),
     'multipleOf': lambda a, b: abs(a*b) // _float_gcd(a, b),
@@ -131,10 +133,11 @@ _simple_mergers = {
     'maxLength': lambda a, b: min(a, b),
     'enum': lambda a, b: a + b,
     'format': lambda a, b: a,  # todo
-    'deprecated': lambda a, b: a or b,
+    'deprecated': _ignore,
     'NOT_enum': lambda a, b: a + b,
     'enum': _merge_enums,
-    'example': lambda _, __: None
+    'example': _ignore,
+    'discriminator': _ignore,
 }
 
 

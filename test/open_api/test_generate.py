@@ -1,4 +1,4 @@
-from fences.open_api.generate import parse, Request
+from fences.open_api.generate import parse_operation, Request, SampleCache, OpenApi
 from fences.core.render import render
 
 import unittest
@@ -11,14 +11,17 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 class GenerateTestCase(unittest.TestCase):
 
     def check(self, schema, debug=False):
-        graph = parse(schema)
-        if debug:
-            render(graph).write_svg('graph.svg')
-
-        for i in graph.generate_paths():
-            request: Request = graph.execute(i.path)
+        sample_cache = SampleCache()
+        schema = OpenApi.from_dict(schema)
+        for operation in schema.operations.values():
+            graph = parse_operation(operation, sample_cache)
             if debug:
-                request.dump()
+                render(graph).write_svg(f'graph_{operation.operation_id}.svg')
+
+            for i in graph.generate_paths():
+                request: Request = graph.execute(i.path)
+                if debug:
+                    request.dump()
 
     def test_simple(self):
         schema = {
