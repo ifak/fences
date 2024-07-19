@@ -168,7 +168,8 @@ def default_config():
                 valid=["3e4666bf-d5e5-4aa7-b8ce-cefe41c7568a"],
                 invalid=[]
             ),
-        }
+        },
+        post_processor=None,
     )
 
 
@@ -489,61 +490,8 @@ def parse_dict(data: dict, config: Config, pointer: JsonPointer) -> Node:
         result = parse_any_of_entry(
             entry, config, pointer + 'anyOf' + idx
         )
-        if 'check' in entry:
-            sub_root = NoOpDecision(all_transitions=True)
-            sub_root.add_transition(result)
-            check = entry['check']
-            for ch in check:
-                if ch == 'Constraint_AASd-124':
-                    class FixConstraint124(Leaf):
-                        def apply(self, data: KeyReference) -> any:
-                            try:
-                                keys = data.get()['keys']
-                            except (KeyError, TypeError):
-                                return data
-                            if not isinstance(keys, list):
-                                return data
-                            keys.append({
-                                'type': 'GlobalReference',
-                                'value': 'xyz'
-                            })
-                            return data
-                    sub_root.add_transition(FixConstraint124(is_valid=True))
-                elif ch == 'Constraint_AASd-125':
-                    class FixConstraint125(Leaf):
-                        def apply(self, data: KeyReference) -> any:
-                            try:
-                                keys: list = data.get()['keys']
-                            except (KeyError, TypeError):
-                                return data
-                            if isinstance(keys, list):
-                               for key in keys[1:]:
-                                 if isinstance(key, dict):
-                                        key['type'] = 'Range'
-                            return data
-                    sub_root.add_transition(FixConstraint125(is_valid=True))
-                elif ch == 'Constraint_AASd-107':
-                    class FixConstraint107(Leaf):
-                        def apply(self, data: KeyReference) -> any:
-                            l: list = data.get()
-                            try:
-                                l['semanticIdListElement'] = l['value'][0]['semanticId']
-                            except (KeyError, TypeError):
-                                pass
-                            return data
-                    sub_root.add_transition(FixConstraint107(is_valid=True))
-                elif ch == 'Constraint_AASd-108':
-                    class FixConstraint108(Leaf):
-                        def apply(self, data: KeyReference) -> any:
-                            l: list = data.get()
-                            try:
-                                l['typeValueListElement'] = l['value'][0]['modelType']
-                            except (KeyError, TypeError):
-                                pass
-                            return data
-                    sub_root.add_transition(FixConstraint108(is_valid=True))
-            result = sub_root
-
+        if config.post_processor:
+            result = config.post_processor(entry, result)
         root.add_transition(result)
 
     return root
