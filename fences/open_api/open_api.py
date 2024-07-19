@@ -150,15 +150,20 @@ class Operation:
         assert_type(data, dict, json_path)
 
         request_body = safe_dict_lookup(data, 'requestBody', dict, json_path, None)
+        parameters=[
+            Parameter.from_dict(components, i, json_path + '.parameters.' + str(idx))
+            for idx, i in enumerate(safe_dict_lookup(data, 'parameters', list, json_path, []))
+        ]
+        for param in parameters:
+            if any(i.name == param.name and i.position == param.position for i in parameters if i is not param):
+                raise OpenApiException(f"Parameter {param.name} not unique for position {param.position.value} ({json_path})")
+
         return Operation(
             path=path,
             operation_id=safe_dict_lookup(data, 'operationId', str, json_path),
             summary=safe_dict_lookup(data, 'summary', str, json_path, ''),
             method=method,
-            parameters=[
-                Parameter.from_dict(components, i, json_path + '.parameters.' + str(idx))
-                for idx, i in enumerate(safe_dict_lookup(data, 'parameters', list, json_path, []))
-            ],
+            parameters=parameters,
             request_body=RequestBody.from_dict(components, request_body, json_path + '.' + 'requestBody') if request_body is not None else None,
             responses=[
                 Response.from_dict(k, v, json_path + '.' + k)

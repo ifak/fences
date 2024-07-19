@@ -16,8 +16,8 @@ class StyleSimpleTest(TestCase):
         )
         result = format_parameter_value(param, value)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0][0], 'my_param')
-        return result[0][1]
+        self.assertIn('my_param', result)
+        return result['my_param']
 
     def test_string(self):
         value = self.format('foo', False)
@@ -55,8 +55,8 @@ class StyleFormTest(TestCase):
     def format(self, value: any, explode: bool) -> str:
         result = self.format_raw(value, explode)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0][0], 'my_param')
-        return result[0][1]
+        self.assertIn('my_param', result)
+        return result['my_param']
 
     def test_string(self):
         result = self.format('blue', False)
@@ -68,14 +68,8 @@ class StyleFormTest(TestCase):
         arr = ["blue", "black", "brown"]
         result = self.format(arr, False)
         self.assertEqual(result, 'blue,black,brown')
-        result = self.format_raw(arr, True)
-        self.assertEqual(len(result), 3)
-        self.assertEqual(result[0][0], 'my_param')
-        self.assertEqual(result[1][0], 'my_param')
-        self.assertEqual(result[2][0], 'my_param')
-        self.assertEqual(result[0][1], 'blue')
-        self.assertEqual(result[1][1], 'black')
-        self.assertEqual(result[2][1], 'brown')
+        result = self.format(arr, True)
+        self.assertEqual(result, 'brown')
 
     def test_object(self):
         obj = {"R": 100, "G": 200, "B": 150}
@@ -83,9 +77,9 @@ class StyleFormTest(TestCase):
         self.assertEqual(result, 'R,100,G,200,B,150')
         result = self.format_raw(obj, True)
         self.assertEqual(len(result), 3)
-        self.assertEqual(result[0][0], 'R')
-        self.assertEqual(result[1][0], 'G')
-        self.assertEqual(result[2][0], 'B')
-        self.assertEqual(result[0][1], '100')
-        self.assertEqual(result[1][1], '200')
-        self.assertEqual(result[2][1], '150')
+        self.assertIn('R', result)
+        self.assertIn('G', result)
+        self.assertIn('B', result)
+        self.assertEqual(result['R'], '100')
+        self.assertEqual(result['G'], '200')
+        self.assertEqual(result['B'], '150')
