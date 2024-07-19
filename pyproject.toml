@@ -15,9 +15,13 @@ classifiers = [
 ]
 keywords = ["xml", "json", "regex", "schema"]
 requires-python = ">=3.6"
+dynamic = ["dependencies"]
 
 [project.urls]
 Homepage = "https://github.com/ifak/fences"
 
 [project.scripts]
 realpython = "reader.__main__:main"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
