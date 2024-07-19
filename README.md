@@ -290,7 +290,8 @@ for i in graph.generate_paths():
 You can use Fences to parse an OpenAPI specification and generate a set of sample requests:
 
 ```python
-from fences import parse_open_api
+from fences.open_api.generate import generate_all, SampleCache
+from fences.open_api.open_api import OpenApi
 
 description = {
     'info': {
@@ -351,37 +352,26 @@ description = {
     }
 }
 
-graph = parse_open_api(description)
-for i in graph.generate_paths():
-    request = graph.execute(i.path)
-    request.dump()
+open_api = OpenApi.from_dict(description)
+sample_cache = SampleCache()
+for operation in open_api.operations.values():
+    graph = generate_all(operation, sample_cache)
+    for i in graph.generate_paths():
+        request = graph.execute(i.path)
+        request.dump()
 ```
 
 <details>
 <summary>Output</summary>
 
 ```
+GET /videos
 GET /videos?type=public&title=xxx
 GET /videos?type=private
-GET /videos?title=xxx
+GET /videos?type=%23%23%23%23%23%23%23%23&title=xxx
 PATCH /videos/0
   BODY: {"title": "xxxxxxxxxx"}
-GET /videos?type=%23%23%23%23%23%23%23%23
-GET /videos?type=public&title=42
-GET /videos?type=private&title=true
-GET /videos?title=false
-GET /videos?type=public&title=
-GET /videos?type=private&title=
-PATCH /videos/string
-  BODY: {"title": "xxxxxxxxxx"}
-PATCH /videos/true
-  BODY: {"title": "xxxxxxxxxx"}
-PATCH /videos/false
-  BODY: {"title": "xxxxxxxxxx"}
-PATCH /videos/
-  BODY: {"title": "xxxxxxxxxx"}
-PATCH /videos/
-  BODY: {"title": "xxxxxxxxxx"}
+PATCH /videos/0
 PATCH /videos/0
   BODY: {"title": 42}
 PATCH /videos/0
@@ -395,33 +385,23 @@ PATCH /videos/0
 PATCH /videos/0
   BODY: {"title": []}
 PATCH /videos/0
+  BODY: {}
 PATCH /videos/0
   BODY: "string"
 PATCH /videos/0
   BODY: 42
 PATCH /videos/0
+PATCH /videos/0
   BODY: true
 PATCH /videos/0
+  BODY: false
+PATCH /videos/0
+  BODY: []
 ```
 </details>
 
 You can execute the generated tests using the `request.execute()` method.
 Please note, that you need to install the `requests` library for this.
-
-```python
-import requests
-
-...
-
-graph = parse_open_api(description)
-for i in graph.generate_paths():
-    request = graph.execute(i.path)
-    request.dump()
-    request.execute('http://localhost:8080')
-```
-
-</details>
-
 
 ## Real-World Examples
 

@@ -1,4 +1,5 @@
-from fences.open_api.generate import parse_operation, Request, SampleCache, OpenApi
+from fences.open_api.generate import generate_all, Request, SampleCache
+from fences.open_api.open_api import OpenApi
 from fences.core.render import render
 
 import unittest
@@ -14,7 +15,7 @@ class GenerateTestCase(unittest.TestCase):
         sample_cache = SampleCache()
         schema = OpenApi.from_dict(schema)
         for operation in schema.operations.values():
-            graph = parse_operation(operation, sample_cache)
+            graph = generate_all(operation, sample_cache)
             if debug:
                 render(graph).write_svg(f'graph_{operation.operation_id}.svg')
 
@@ -36,12 +37,14 @@ class GenerateTestCase(unittest.TestCase):
                             'name': 'foo',
                             'in': 'path',
                             'schema': {
+                                'type': 'string',
                                 'enum': ['a', 'b']
                             }
                         }, {
                             'name': 'foo',
                             'in': 'query',
                             'schema': {
+                                'type': 'string',
                                 'minLength': 10
                             }
                         }, {
