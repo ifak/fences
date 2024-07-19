@@ -5,7 +5,7 @@ from .format import format_parameter_value
 from .exceptions import MissingDependencyException
 
 from fences.json_schema import parse as json_schema
-from fences.json_schema.normalize import normalize as normalize_schema
+from fences.json_schema.normalize import normalize as normalize_schema, NormalizationConfig
 from fences.core.node import Node, NoOpDecision, Decision, Leaf, NoOpLeaf
 
 from dataclasses import dataclass, field
@@ -144,7 +144,11 @@ class SampleCache:
         except KeyError:
             pass
 
-        schema_norm = normalize_schema(schema, False)
+        norm_conf = NormalizationConfig(
+            full_merge=False,
+            discard_fields={"deprecated", "example", "discriminator"},
+        )
+        schema_norm = normalize_schema(schema, norm_conf)
         config = json_schema.default_config()
         config.normalize = False
         if not is_body:

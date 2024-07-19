@@ -1,10 +1,20 @@
-from typing import List, Union, Set, Dict, Tuple
+from typing import List, Union, Set, Dict, Tuple, Callable
 from fences.core.exception import NormalizationException
 from fences.json_schema.json_pointer import JsonPointer
-import math
 import hashlib
 import json
 import copy
+
+from dataclasses import dataclass, field
+
+Merger = Callable[[any, any], any]
+
+
+@dataclass
+class NormalizationConfig:
+    full_merge: bool = True
+    discard_fields: Set[str] = field(default_factory=set)
+    additional_mergers: Dict[str, Merger] = field(default_factory=dict)
 
 
 SchemaType = Union[dict, bool]
@@ -49,11 +59,13 @@ def _invert_properties(props: dict):
         'required': list(props.keys())
     }
 
+
 def _invert_items(items: dict):
     return {
         'type': 'array',
         'items': {'not': items}
     }
+
 
 _inverters = {
     'minimum': lambda x: {'type': ['number'], 'exclusiveMaximum': x},
@@ -90,11 +102,11 @@ def _invert(trivial_schema: dict) -> dict:
     return {'anyOf': result}
 
 
-def invert(norm_schema: dict, full_merge: bool) -> dict:
+def invert(norm_schema: dict, config: NormalizationConfig) -> dict:
     return merge([
         _invert(i)
         for i in norm_schema['anyOf']
-    ], full_merge)
+    ], config)
 
 
 def _merge_type(a: Union[List[str], str], b: Union[List[str], str]) -> List[str]:
@@ -104,20 +116,20 @@ def _merge_type(a: Union[List[str], str], b: Union[List[str], str]) -> List[str]
         b = [b]
     return list(set(a) & set(b))
 
+
 def _merge_enums(a: List[any], b: List[any]) -> List[any]:
     # TODO: we assume string lists, we is not generic
     a = set(a)
     b = set(b)
     return list(a & b)
 
-def _float_gcd(a, b, rtol = 1e-05, atol = 1e-08):
+
+def _float_gcd(a, b, rtol=1e-05, atol=1e-08):
     t = min(abs(a), abs(b))
     while abs(b) > rtol * t + atol:
         a, b = b, a % b
     return a
 
-def _ignore(_, __) -> None:
-    return None
 
 _simple_mergers = {
     'required': lambda a, b: list(set(a) | set(b)),
@@ -133,11 +145,8 @@ _simple_mergers = {
     'maxLength': lambda a, b: min(a, b),
     'enum': lambda a, b: a + b,
     'format': lambda a, b: a,  # todo
-    'deprecated': _ignore,
     'NOT_enum': lambda a, b: a + b,
     'enum': _merge_enums,
-    'example': _ignore,
-    'discriminator': _ignore,
 }
 
 
@@ -148,7 +157,7 @@ def _merge_properties(result: dict, to_add: dict) -> dict:
     # Result:   a: 1a+2n, b: 1b+2b, c: 2c+1n, ...: 1n+2n
 
     props_result = result.get('properties', {})
-    props_result = copy.deepcopy(props_result) # TODO: why?
+    props_result = copy.deepcopy(props_result)  # TODO: why?
     props_to_add = to_add.get('properties', {})
     additional_result = result.get('additionalProperties')
     additional_to_add = to_add.get('additionalProperties')
@@ -209,7 +218,7 @@ _complex_mergers = {
 }
 
 
-def _merge(result: dict, to_add: dict) -> None:
+def _merge(result: dict, to_add: dict, config: NormalizationConfig) -> None:
 
     for key, merger in _complex_mergers.items():
         if key in result or key in to_add:
@@ -219,7 +228,10 @@ def _merge(result: dict, to_add: dict) -> None:
         if key not in to_add:
             # nothing to merge
             continue
-        if key in _simple_mergers:
+        if key in config.additional_mergers:
+            merger = config.additional_mergers[key]
+            result[key] = merger(value, to_add[key])
+        elif key in _simple_mergers:
             merger = _simple_mergers[key]
             result[key] = merger(value, to_add[key])
         elif key in _complex_mergers:
@@ -233,14 +245,14 @@ def _merge(result: dict, to_add: dict) -> None:
             result[key] = value
 
 
-def merge(schemas: List[SchemaType], full_merge: bool) -> SchemaType:
-    if full_merge:
-        return merge_full(schemas)
+def merge(schemas: List[SchemaType], config: NormalizationConfig) -> SchemaType:
+    if config.full_merge:
+        return merge_full(schemas, config)
     else:
-        return merge_simple(schemas)
+        return merge_simple(schemas, config)
 
 
-def merge_simple(schemas: List[SchemaType]) -> SchemaType:
+def merge_simple(schemas: List[SchemaType], config: NormalizationConfig) -> SchemaType:
     assert len(schemas) > 0
     results = []
     num = max([len(s['anyOf']) for s in schemas])
@@ -251,12 +263,12 @@ def merge_simple(schemas: List[SchemaType]) -> SchemaType:
             if len(ao) == 0:
                 continue
             option = ao[idx % len(ao)]
-            _merge(result, option)
+            _merge(result, option, config)
         results.append(result)
     return {'anyOf': results}
 
 
-def merge_full(schemas: List[SchemaType]) -> SchemaType:
+def merge_full(schemas: List[SchemaType], config: NormalizationConfig) -> SchemaType:
     assert len(schemas) > 0
     result = [{}]
     for schema in schemas:
@@ -264,7 +276,7 @@ def merge_full(schemas: List[SchemaType]) -> SchemaType:
         for option in schema['anyOf']:
             for i in result:
                 ii = i.copy()
-                _merge(ii, option)
+                _merge(ii, option, config)
                 new_result.append(ii)
         result = new_result
     return {'anyOf': result}
@@ -339,6 +351,7 @@ def _simplify_if_then_else(schema: dict):
     ]}
     return result
 
+
 def _simplify_const(schema: dict) -> dict:
     if 'const' not in schema:
         return schema
@@ -349,6 +362,7 @@ def _simplify_const(schema: dict) -> dict:
     else:
         schema['enum'] = [const]
     return schema
+
 
 def _simplify_dependent_required(schema: dict) -> dict:
     if 'dependentRequired' not in schema:
@@ -361,7 +375,7 @@ def _simplify_dependent_required(schema: dict) -> dict:
     # yes      | no       | no
     # no       | yes      | yes
     # yes      | yes      | yes
-    # 
+    #
     # anyOf:
     # - { "properties": {"a": False, "b": True }, "required": [] }
     # - { "properties": {"a": True,  "b": True }, "required": ["a", "b"]}
@@ -379,7 +393,8 @@ def _simplify_dependent_required(schema: dict) -> dict:
             {"properties": props1},
             {"properties": props2, "required": requires + [property]}
         ]})
-    return {"allOf": [schema] + options }
+    return {"allOf": [schema] + options}
+
 
 def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
     if schema is False:
@@ -415,7 +430,7 @@ def _inline_refs(schema: dict, resolver: Resolver) -> Tuple[dict, bool]:
     return schema, contains_refs
 
 
-def _to_dnf(schema: dict, full_merge: bool) -> dict:
+def _to_dnf(schema: dict, config: NormalizationConfig) -> dict:
 
     if schema is False:
         return NORM_FALSE.copy()
@@ -423,6 +438,7 @@ def _to_dnf(schema: dict, full_merge: bool) -> dict:
     if schema is True:
         return NORM_TRUE.copy()
 
+    schema = {k: v for k, v in schema.items() if k not in config.discard_fields}
     schema = copy.deepcopy(schema)
     schema = _simplify_const(schema)
     schema = _simplify_if_then_else(schema)
@@ -433,8 +449,7 @@ def _to_dnf(schema: dict, full_merge: bool) -> dict:
     if 'anyOf' in schema:
         any_ofs = []
         for sub_schema in schema['anyOf']:
-            normalized_sub_schema = _to_dnf(
-                sub_schema, full_merge)
+            normalized_sub_schema = _to_dnf(sub_schema, config)
             any_ofs.extend(normalized_sub_schema['anyOf'])
     else:
         any_ofs = [{}]
@@ -443,14 +458,13 @@ def _to_dnf(schema: dict, full_merge: bool) -> dict:
     if 'oneOf' in schema:
         one_ofs = []
         normalized_sub_schemas = [
-            _to_dnf(sub_schema, full_merge)
-            for sub_schema in schema['oneOf']
+            _to_dnf(sub_schema, config)for sub_schema in schema['oneOf']
         ]
         for idx, _ in enumerate(normalized_sub_schemas):
             options = merge([
-                invert(i, full_merge) if sub_idx == idx else i
+                invert(i, config) if sub_idx == idx else i
                 for sub_idx, i in enumerate(normalized_sub_schemas)
-            ], full_merge)
+            ], config)
             one_ofs.extend(options['anyOf'])
     else:
         one_ofs = [{}]
@@ -463,24 +477,24 @@ def _to_dnf(schema: dict, full_merge: bool) -> dict:
             del side_schema[sub_schema]
     all_ofs.append({'anyOf': [side_schema]})
     for sub_schema in schema.get('allOf', []):
-        all_ofs.append(_to_dnf(sub_schema, full_merge))
+        all_ofs.append(_to_dnf(sub_schema, config))
 
     # not
     if 'not' in schema:
-        norm_schema = _to_dnf(schema['not'], full_merge)
-        all_ofs.append(invert(norm_schema, full_merge))
+        norm_schema = _to_dnf(schema['not'], config)
+        all_ofs.append(invert(norm_schema, config))
 
-    s = merge(all_ofs, full_merge)
+    s = merge(all_ofs, config)
 
     result = merge([
         {'anyOf': any_ofs},
         {'anyOf': one_ofs},
         s
-    ], full_merge)
+    ], config)
     return result
 
 
-def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full_merge: bool) -> dict:
+def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], config: NormalizationConfig) -> dict:
     if schema is False:
         return NORM_FALSE.copy()
 
@@ -498,7 +512,7 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
     # Inline all references (if any)
     (schema, contains_refs) = _inline_refs(schema, resolver)
 
-    result = _to_dnf(schema, full_merge)
+    result = _to_dnf(schema, config)
 
     # Store new schema if sub-schemas later try to reference it
     if contains_refs:
@@ -509,17 +523,17 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
         for kw in ['additionalProperties', 'items', 'additionalItems', 'contains']:
             if kw in sub_schema:
                 sub_schema[kw] = _normalize(
-                    sub_schema[kw], resolver, new_refs, full_merge)
+                    sub_schema[kw], resolver, new_refs, config)
 
         props: dict = sub_schema.get('properties', {})
         for name, sub_sub_schema in props.items():
             props[name] = _normalize(
-                sub_sub_schema, resolver, new_refs, full_merge)
+                sub_sub_schema, resolver, new_refs, config)
 
         prefix_items: list = sub_schema.get('prefixItems', [])
         for idx, sub_sub_schema in enumerate(prefix_items):
             prefix_items[idx] = _normalize(
-                sub_sub_schema, resolver, new_refs, full_merge)
+                sub_sub_schema, resolver, new_refs, config)
 
     # Return
     if contains_refs:
@@ -528,7 +542,7 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], full
         return result
 
 
-def normalize(schema: SchemaType, full_merge: bool = True) -> any:
+def normalize(schema: SchemaType, config: NormalizationConfig = NormalizationConfig()) -> any:
     if schema is False:
         return NORM_FALSE.copy()
 
@@ -546,7 +560,7 @@ def normalize(schema: SchemaType, full_merge: bool = True) -> any:
             del new_schema[kw]
     resolver = Resolver(schema)
     new_refs: Dict[str, dict] = {}
-    new_schema = _normalize(new_schema, resolver, new_refs, full_merge)
+    new_schema = _normalize(new_schema, resolver, new_refs, config)
     if '$schema' in schema:
         new_schema['$schema'] = schema['$schema']
     new_schema['$defs'] = new_refs
