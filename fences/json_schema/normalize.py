@@ -15,7 +15,7 @@ class NormalizationConfig:
     full_merge: bool = True
     discard_fields: Set[str] = field(default_factory=set)
     additional_mergers: Dict[str, Merger] = field(default_factory=dict)
-
+    detect_duplicate_subschemas: bool = False
 
 SchemaType = Union[dict, bool]
 
@@ -514,6 +514,7 @@ def _normalize(schema: dict, resolver: Resolver, new_refs: Dict[str, dict], conf
 
     result = _to_dnf(schema, config)
 
+    contains_refs = contains_refs or config.detect_duplicate_subschemas
     # Store new schema if sub-schemas later try to reference it
     if contains_refs:
         new_refs[new_ref_name] = result
