@@ -45,6 +45,41 @@ def print_table(table: Table):
     lines = render_table(table)
     print("\n".join(lines))
 
+def render_latex_table(table: Table) -> List[str]:
+    COL_DELIMITER = ' & '
+    ROW_DELIMITER = '\midrule'
+
+    value_cell_lengths = [len(row) for row in table if row]
+    if not value_cell_lengths:
+        # Table is empty or contains delimiters only
+        return ROW_DELIMITER * len(table)
+    num_cols = max(value_cell_lengths)
+
+    # Output
+    lines = [
+        "\\begin{table}[hbpt!]",
+        "  \\begin{tabular}{" +  ' c ' * num_cols + "}",
+        "  \\toprule",
+    ]
+
+    for row in table:
+        if row:
+            lines.append("  " + COL_DELIMITER.join(row) + ' \\\\')
+        else:
+            lines.append("  " + ROW_DELIMITER)
+    
+    lines += [
+        "  \\bottomrule",
+        "  \\end{tabular}",
+        "\\end{table}"
+    ]
+
+    return lines
+
+def print_latex_table(table: Table):
+    lines = render_latex_table(table)
+    print("\n".join(lines))
+
 
 class ConfusionMatrix:
 
@@ -70,6 +105,9 @@ class ConfusionMatrix:
 
     def print(self):
         print_table(self.to_table())
+
+    def print_latex(self):
+        print_latex_table(self.to_table())
 
     def add(self, is_valid: bool, accepted: bool):
         if is_valid:
