@@ -50,7 +50,7 @@ acccbbbbbbb
 ```
 </details>
 
-### JSON schema
+### JSON Schema
 
 Generate samples for json schema:
 
@@ -84,35 +84,96 @@ Valid:
     "foo": "",
     "bar": true
 }
-
 Valid:
 {}
-
 Valid:
 {
     "foo": "",
     "bar": false
 }
-
+Valid:
+""
+Valid:
+[
+    "string"
+]
+Valid:
+[
+    42
+]
+Valid:
+[
+    null
+]
+Valid:
+[
+    true
+]
+Valid:
+[
+    false
+]
+Valid:
+[
+    {}
+]
+Valid:
+[
+    []
+]
+Valid:
+true
+Valid:
+false
+Valid:
+0
+Valid:
+null
+Invalid:
+{
+    "foo": 42
+}
 Invalid:
 {
     "foo": null
 }
-
+Invalid:
+{
+    "foo": true,
+    "bar": true
+}
+Invalid:
+{
+    "foo": false
+}
+Invalid:
+{
+    "foo": {},
+    "bar": true
+}
+Invalid:
+{
+    "foo": []
+}
+Invalid:
+{
+    "bar": "string"
+}
 Invalid:
 {
     "bar": 42
 }
-
 Invalid:
 {
     "bar": null
 }
-
 Invalid:
 {
-    "foo": "",
-    "bar": "INVALID"
+    "bar": {}
+}
+Invalid:
+{
+    "bar": []
 }
 ```
 </details>
