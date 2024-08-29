@@ -29,9 +29,9 @@ def _format_form(parameter: Parameter, value: any) -> dict:
     if isinstance(value, str):
         return {name: value}
     if isinstance(value, bool):
-        return {name: ['true']} if value else {name: ['false']}
+        return {name: 'true'} if value else {name: 'false'}
     if isinstance(value, (int, float)):
-        return {name: [str(value)]}
+        return {name: str(value)}
     if isinstance(value, list):
         if parameter.explode:
             # TODO: this is actually wrong, we should insert ALL values here
@@ -44,7 +44,7 @@ def _format_form(parameter: Parameter, value: any) -> dict:
             return {k: str(v) for k, v in value.items()}
         else:
             return {name: _format_simple(value, False)}
-    raise OpenApiException(f"Cannot simple format {value}")
+    raise OpenApiException(f"Cannot form format {value}")
 
 
 def format_parameter_value(parameter: Parameter, value: any) -> dict:
