@@ -146,7 +146,6 @@ class SampleCache:
 
         norm_conf = NormalizationConfig(
             full_merge=False,
-            discard_fields={"deprecated", "example", "discriminator"},
         )
         schema_norm = normalize_schema(schema, norm_conf)
         config = json_schema.default_config()

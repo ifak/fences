@@ -13,7 +13,18 @@ Merger = Callable[[any, any], any]
 @dataclass
 class NormalizationConfig:
     full_merge: bool = True
-    discard_fields: Set[str] = field(default_factory=set)
+    discard_fields: Set[str] = field(default_factory=lambda: {
+        'description',
+        'title',
+        '$comment',
+        'deprecated',
+        'example',
+        'examples',
+        'discriminator',
+        'default',
+        'readOnly',
+        'writeOnly',
+    })
     additional_mergers: Dict[str, Merger] = field(default_factory=dict)
     detect_duplicate_subschemas: bool = False
 
