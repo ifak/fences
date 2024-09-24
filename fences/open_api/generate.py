@@ -55,28 +55,33 @@ class Request:
         }[position]
         storage.update(values)
 
-    def execute(self, host: str) -> "requests.models.Response":
+    def build(self, host: str) -> "requests.models.Request":
         try:
             import requests  # optional dependency
         except ImportError:
             raise MissingDependencyException("Please install the requests library")
 
-        headers = self.headers.copy()
-        # TODO: content type should not be hardcoded
-        headers['content-type'] = 'application/json'
-        body = None
-        if self.body is not None:
+        if self.body is None:
+            body = None
+        else:
             body = json.dumps(self.body)
 
         if host.endswith('/'):
             host = host[:-1]
-        response = requests.request(
+        return requests.models.Request(
             url=host + self.make_path(),
             method=self.operation.method,
             data=body,
-            headers=dict(headers)
+            headers=self.headers
         )
-        return response
+
+    def execute(self, host: str) -> "requests.models.Response":
+        try:
+            import requests  # optional dependency
+        except ImportError:
+            raise MissingDependencyException("Please install the requests library")
+        prepared_request = self.build(host).prepare()
+        return requests.Session().send(prepared_request)
 
 
 class CreateRequest(Decision):
