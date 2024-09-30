@@ -108,11 +108,11 @@ class RequestBody:
 
 @dataclass
 class Response:
-    code: int
+    code: Optional[int]
     schema: Optional[Dict]
 
     @classmethod
-    def from_dict(self, code: str, data: Any, json_path) -> Self:
+    def from_dict(self, components: Any, code: str, data: Any, json_path) -> Self:
         content = safe_dict_lookup(data, 'content', dict, json_path, None)
         schema = None
         if content is not None:
@@ -127,9 +127,11 @@ class Response:
             else:
                 json_content = safe_dict_lookup(content, json_content_type, dict, json_path)
             schema = safe_dict_lookup(json_content, 'schema', dict, json_path, None)
+            if isinstance(schema, dict):
+                schema['components'] = components
 
         return Response(
-            code=400 if code == 'default' else int(code),
+            code=None if code == 'default' else int(code),
             schema=schema,
         )
 
@@ -166,7 +168,7 @@ class Operation:
             parameters=parameters,
             request_body=RequestBody.from_dict(components, request_body, json_path + '.' + 'requestBody') if request_body is not None else None,
             responses=[
-                Response.from_dict(k, v, json_path + '.' + k)
+                Response.from_dict(components, k, v, json_path + '.' + k)
                 for k, v in safe_dict_lookup(data, 'responses', dict, json_path).items()
             ],
             tags=set(safe_dict_lookup(data, 'tags', list, json_path, []))
