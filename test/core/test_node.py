@@ -3,6 +3,7 @@ from fences.core.exception import ResolveReferenceException, FencesException
 from fences.core.node import NoOpDecision, NoOpLeaf, Reference, Leaf, Decision
 from fences.core.debug import check_consistency
 
+
 class ItemsTest(TestCase):
     def test_empty(self):
         root = NoOpDecision(None)
@@ -69,6 +70,7 @@ class ResolveTest(TestCase):
         self.assertIs(new_root, subroot)
         check_consistency(root)
 
+
 class MockLeaf(Leaf):
 
     def __init__(self, id: str, is_valid: bool) -> None:
@@ -79,6 +81,7 @@ class MockLeaf(Leaf):
         self.count += 1
         return data
 
+
 class MockDecision(Decision):
 
     def __init__(self, id: str, all_transitions: bool) -> None:
@@ -88,6 +91,7 @@ class MockDecision(Decision):
     def apply(self, data: any) -> any:
         self.count += 1
         return data
+
 
 class GeneratePathsTest(TestCase):
 
@@ -111,7 +115,7 @@ class GeneratePathsTest(TestCase):
         self.assertEqual(root.count, 2)
         self.assertEqual(node1.count, 1)
         self.assertEqual(node2.count, 1)
-    
+
     def test_and_decision(self):
         root = MockDecision('root', True)
         node1 = MockLeaf('leaf1', True)
@@ -147,6 +151,23 @@ class GeneratePathsTest(TestCase):
         subroot1.add_transition(child12)
         subroot2.add_transition(child21)
         subroot2.add_transition(child22)
+        self.assertGreaterEqual(len(list(root.generate_paths())), 2)
+
+    def test_diamond(self):
+        root = NoOpDecision("root", False)
+        left_1 = NoOpDecision("left", False)
+        left_2 = NoOpDecision("left2", False)
+        right_1 = NoOpDecision("right", False)
+        right_2 = NoOpDecision("right2", False)
+        leaf = Leaf("leaf", False)
+        # left side
+        root.add_transition(left_1)
+        left_1.add_transition(left_2)
+        left_2.add_transition(leaf)
+        # right side
+        root.add_transition(right_1)
+        right_1.add_transition(right_2)
+        right_2.add_transition(leaf)
         self.assertEqual(len(list(root.generate_paths())), 2)
 
 class OptimizeTest(TestCase):
