@@ -178,7 +178,7 @@ class SampleCache:
         return samples
 
 
-def generate_one_valid(operation: Operation, sample_cache: SampleCache, parameter_overwrites: Dict[str, any]) -> Request:
+def generate_one_valid(operation: Operation, sample_cache: SampleCache, parameter_overwrites: Dict[str, any] = {}) -> Request:
     test_case = Request(operation)
     for param in operation.parameters:
         try:
