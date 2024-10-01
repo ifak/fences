@@ -45,6 +45,7 @@ def print_table(table: Table):
     lines = render_table(table)
     print("\n".join(lines))
 
+
 def render_latex_table(table: Table) -> List[str]:
     COL_DELIMITER = ' & '
     ROW_DELIMITER = '\midrule'
@@ -58,7 +59,7 @@ def render_latex_table(table: Table) -> List[str]:
     # Output
     lines = [
         "\\begin{table}[hbpt!]",
-        "  \\begin{tabular}{" +  ' c ' * num_cols + "}",
+        "  \\begin{tabular}{" + ' c ' * num_cols + "}",
         "  \\toprule",
     ]
 
@@ -67,7 +68,7 @@ def render_latex_table(table: Table) -> List[str]:
             lines.append("  " + COL_DELIMITER.join(row) + ' \\\\')
         else:
             lines.append("  " + ROW_DELIMITER)
-    
+
     lines += [
         "  \\bottomrule",
         "  \\end{tabular}",
@@ -75,6 +76,7 @@ def render_latex_table(table: Table) -> List[str]:
     ]
 
     return lines
+
 
 def print_latex_table(table: Table):
     lines = render_latex_table(table)
@@ -90,7 +92,7 @@ class ConfusionMatrix:
         self.invalid_rejected = 0
 
     def to_table(self) -> Table:
-        total = self.valid_accepted + self.valid_rejected + self.invalid_accepted + self.invalid_rejected
+        total = self.total()
         return [
             ['', 'Valid', 'Invalid', 'Total'],
             None,
@@ -120,3 +122,29 @@ class ConfusionMatrix:
                 self.invalid_accepted += 1
             else:
                 self.invalid_rejected += 1
+
+    def __add__(self, other: "ConfusionMatrix") -> "ConfusionMatrix":
+        result = ConfusionMatrix()
+        result += self
+        result += other
+        return result
+
+    def __iadd__(self, other: "ConfusionMatrix") -> "ConfusionMatrix":
+        self.valid_accepted = self.valid_accepted + other.valid_accepted
+        self.invalid_accepted = self.invalid_accepted + other.invalid_accepted
+        self.valid_rejected = self.valid_rejected + other.valid_rejected
+        self.invalid_rejected = self.invalid_rejected + other.invalid_rejected
+        return self
+
+    def total(self) -> int:
+        return self.valid_accepted + self.valid_rejected + self.invalid_accepted + self.invalid_rejected
+
+    def accuracy(self) -> float:
+        total = self.total()
+        return (self.valid_accepted + self.invalid_rejected) / total
+
+    def balanced_accuracy(self) -> float:
+        return (
+            (self.valid_accepted / (self.valid_accepted + self.valid_rejected)) +
+            (self.invalid_rejected / (self.invalid_accepted + self.invalid_rejected))
+        ) / 2
