@@ -114,3 +114,8 @@ class ConfusionMatrixTest(TestCase):
         c.invalid_accepted = 7
         c.invalid_rejected = 11
         self.assertAlmostEqual(c.balanced_accuracy(), ((2/5) + (11/18)) / 2)
+
+    def test_zero(self):
+        c = ConfusionMatrix()
+        self.assertEqual(c.accuracy(), 0)
+        self.assertEqual(c.balanced_accuracy(), 0)

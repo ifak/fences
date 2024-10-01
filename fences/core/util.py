@@ -141,10 +141,13 @@ class ConfusionMatrix:
 
     def accuracy(self) -> float:
         total = self.total()
+        if total == 0:
+            return 0
         return (self.valid_accepted + self.invalid_rejected) / total
 
     def balanced_accuracy(self) -> float:
-        return (
-            (self.valid_accepted / (self.valid_accepted + self.valid_rejected)) +
-            (self.invalid_rejected / (self.invalid_accepted + self.invalid_rejected))
-        ) / 2
+        valid_total = self.valid_accepted + self.valid_rejected
+        invalid_total = self.invalid_accepted + self.invalid_rejected
+        if valid_total == 0 or invalid_total == 0:
+            return 0
+        return ((self.valid_accepted / valid_total) + (self.invalid_rejected / invalid_total)) / 2
