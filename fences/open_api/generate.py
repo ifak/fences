@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, TYPE_CHECKING
+from typing import List, Dict, Optional, TYPE_CHECKING, Set
 
 from .open_api import Operation, ParameterPosition, Parameter
 from .format import format_parameter_value
@@ -180,9 +180,11 @@ class SampleCache:
 
 def generate_one_valid(operation: Operation, sample_cache: SampleCache, parameter_overwrites: Dict[str, any] = {}) -> Request:
     test_case = Request(operation)
+    unused_overwrites: Set[str] = set(parameter_overwrites.keys())
     for param in operation.parameters:
         try:
             sample = parameter_overwrites[param.name]
+            unused_overwrites.remove(param.name)
         except KeyError:
             if not param.required:
                 continue
@@ -192,6 +194,8 @@ def generate_one_valid(operation: Operation, sample_cache: SampleCache, paramete
     if operation.request_body:
         bodies = sample_cache.add(operation.request_body.schema, True)
         test_case.body = bodies.valid[0]
+    if unused_overwrites:
+        raise RuntimeError(f"Overwrites contain unknown parameters: {operation.operation_id} {','.join(unused_overwrites)}")
     return test_case
 
 
