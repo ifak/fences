@@ -1,77 +1,61 @@
 #! /usr/bin/env python3
 
-from fences import parse_json_schema
-from fences.json_schema.parse import default_config
-from fences.json_schema.normalize import normalize
+import aas_core3.jsonization as aas_jsonization
+import aas_core3.verification as aas_verification
 from fences.core.util import ConfusionMatrix
-import json_schema_tool
-
-import os
-import yaml
+from collections import defaultdict
 import json
-import shutil
-import time
+from timeit import default_timer
+from generate import generate
 
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-TEST_DATA_DIR = os.path.join(SCRIPT_DIR, 'test-data')
-TEST_DATA_DIR_VALID = os.path.join(TEST_DATA_DIR, 'valid')
-TEST_DATA_DIR_INVALID = os.path.join(TEST_DATA_DIR, 'invalid')
-def main():
-    # Setting these to true will interfere with the time measurement
-    save_to_file = False
-    validate = False
-    if save_to_file:
-        # Remove old data if any
-        if os.path.exists(TEST_DATA_DIR):
-            shutil.rmtree(TEST_DATA_DIR)
-        os.mkdir(TEST_DATA_DIR)
-        os.mkdir(TEST_DATA_DIR_VALID)
-        os.mkdir(TEST_DATA_DIR_INVALID)
+mat_aas_core = ConfusionMatrix()
+causes = defaultdict(lambda: 0)
+DEBUG = False
+blacklist = [
+    'Message broker must be a model reference to a referable.',
+    'Max. interval is not applicable for input direction.',
+    'Observed must be a model reference to a referable.',
+    'Derived-from must be a model reference to an asset administration shell.',
+    'All submodels must be model references to a submodel.',
+    'Constraint AASc-3a-009: If data type is a an integer, real or rational with a measure or currency, unit or unit ID shall be defined.',
+]
 
-    # Generate test data
-    with open(os.path.join(SCRIPT_DIR, 'aas.yml')) as file:
-        schema = yaml.safe_load(file)
-    jst_conf = json_schema_tool.schema.ParseConfig()
-    jst_conf.raise_on_unknown_format = False
-    validator = json_schema_tool.parse_schema(schema, jst_conf)
-    start = time.perf_counter()
+start = default_timer()
+for idx, (is_valid, sample) in enumerate(generate()):
+    try:
+        env = aas_jsonization.environment_from_jsonable(sample)
+    except aas_jsonization.DeserializationException as e:
+        env = None
 
-    print("Normalize...")
-    schema = normalize(schema, False)
-    with open(os.path.join(SCRIPT_DIR, 'aas_norm.yml'), 'w') as file:
-        yaml.safe_dump(schema, file)
+    if env is None:
+        accepted = False
+    else:
+        accepted = True
+        errors = aas_verification.verify(env)
+        for error in errors:
+            if is_valid:
+                causes[error.cause] += 1
+            if error.cause not in blacklist:
+                accepted = False
+    mat_aas_core.add(is_valid, accepted)
+    if DEBUG:
+        if is_valid and not accepted:
+            with open(f'valid_rejected/{mat_aas_core.valid_rejected}.json', "w") as f:
+                json.dump(sample, f, indent=4)
+        if not is_valid and accepted:
+            with open(f'invalid_accepted/{mat_aas_core.invalid_accepted}.json', "w") as f:
+                json.dump(sample, f, indent=4)
 
-    print("Generate...")
-    config = default_config()
-    config.normalize = False
-    graph = parse_json_schema(schema, config)
+    if (idx+1) % 100 == 0:
+        mat_aas_core.print()
 
-    mat = ConfusionMatrix()
-    for idx, i in enumerate(graph.generate_paths()):
-        sample = graph.execute(i.path)
-        if validate:
-            ok = validator.validate(sample).ok
-        else:
-            ok = True
-        if i.is_valid:
-            path = os.path.join(TEST_DATA_DIR, "valid", f"{idx}.json")
-            if ok:
-                mat.valid_accepted += 1
-            else:
-                mat.valid_rejected += 1
-        else:
-            path = os.path.join(TEST_DATA_DIR, "invalid", f"{idx}.json")
-            if ok:
-                mat.invalid_accepted += 1
-            else:
-                mat.invalid_rejected += 1
+end = default_timer()
 
-        if save_to_file:
-            json.dump(sample, open(path, "w"), indent=2)
+print(f"Elapsed time: {end - start:.1f}s")
 
-    elapsed = int(time.perf_counter() - start)
-    print(f"Took {elapsed} seconds")
-    mat.print()
+for cause in sorted(causes.keys(), key=lambda x: causes[x]):
+    print(f"{causes[cause]}: {cause}")
 
-if __name__ == "__main__":
-    main()
+mat_aas_core.print()
+
+exit(0)
